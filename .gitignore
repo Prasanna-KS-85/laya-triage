@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Data (raw/processed are never committed; see PROJECT_SPEC.md §8, R10)
+data/raw/
+data/processed/
+
+# Model caches
+.cache/
+hf_cache/
+.hf_cache/
+huggingface/
+checkpoint_latest/
+*.safetensors
+*.onnx
+
+# Secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+
+# Results scratch files
+results/*.tmp
+
+# Third-party reference material (not redistributed)
+reference/
