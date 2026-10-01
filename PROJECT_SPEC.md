@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.2 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.3 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -215,8 +215,8 @@ Each answer exposes two confidence values:
 These are **targets, not promises**. Report the real numbers either way. An honest miss with
 analysis is acceptable; a hidden miss is not.
 
-1. The fine-tuned model beats both the Laya zero-shot and TF-IDF+LR baselines on macro-F1 on the
-   NLBSE'24 test split.
+1. The fine-tuned model beats both the Laya zero-shot and TF-IDF+LR baselines on the headline
+   cross-repo macro-F1 (§10.2) on the NLBSE'24 test split.
 2. Post-calibration ECE ≤ 0.10 on the test split.
 3. A threshold exists on validation data giving **≥ 90% precision** on auto-labelled issues. Report
    the coverage it achieves on the test split.
@@ -368,28 +368,40 @@ GitHub         Workflow            laya_triage                     HF Hub / cach
 
 | Source | Use | Notes |
 |---|---|---|
-| **NLBSE'24 Issue Report Classification** (github.com/nlbse2024/issue-report-classification) | **Primary.** Train, validation, and test. | About 3,000 issues from 5 repos (facebook/react, tensorflow/tensorflow, microsoft/vscode, bitcoin/bitcoin, opencv/opencv). One label each: `bug`, `feature`, `question`. Fields: repository, label, title, body. Publishes per-repo baseline P/R/F1 results. **Verify license and split sizes in Phase 1.** |
-| NLBSE'23 Issue Report Classification | **Optional (Protocol B only).** Extra training data. | About 1.4M issues with 4 labels including `documentation`. Must be **deduplicated by issue URL against NLBSE'24 test**, since repos may overlap. |
+| **NLBSE'24 Issue Report Classification** (github.com/nlbse2024/issue-report-classification) | **Primary.** Train, validation, and test. | About 3,000 issues from 5 repos (facebook/react, tensorflow/tensorflow, microsoft/vscode, bitcoin/bitcoin, opencv/opencv). One label each: `bug`, `feature`, `question`. Fields: repository, label, title, body. Publishes per-repo baseline P/R/F1 results. No issue IDs/URLs in the data; upstream LICENSE file is empty, so raw data is never committed; obtained by `training/fetch_data.py` pinned to upstream commit `2927bc67eb42db8affd16eaf3e5a6d74f3063961` and verified by SHA-256 (train `18dc42a30aa33dccadb723ad3baeb164d38bff521496f985ca2791c26b8939f5`, test `4f7d8619d4e5adbea126e548fd8c214449288f3a93bb3bc130c54cd307af7e85`). **Verify license and split sizes in Phase 1.** |
+| NLBSE'23 Issue Report Classification | **Optional (Protocol B only).** Extra training data. | About 1.4M issues with 4 labels including `documentation`. Must be **deduplicated against NLBSE'24 by content hash (title + body), not by URL**, since repos may overlap. |
 | Sandbox GitHub repo (own) | End-to-end demo and qualitative evaluation | Issues written by hand during Phase 4. Not used for training. |
 
 ### 8.2 Evaluation protocols
 
 - **Protocol A (strict, headline).** Train only on the NLBSE'24 official train split, with no
   resampling or rebalancing, matching the competition rules. Evaluate on the official test split.
-  This makes our numbers directly comparable to the published baseline.
-- **Protocol B (optional).** Protocol A training data plus a deduplicated NLBSE'23 subsample.
+  This makes our numbers directly comparable to the published baseline. Pretrained models are
+  allowed by the competition rules but may only be fine-tuned on the provided training set;
+  Protocol B violates that and is non-comparable.
+- **Protocol B (optional).** Protocol A training data plus an NLBSE'23 subsample deduplicated
+  against NLBSE'24 by content hash (title + body), not by URL.
   Results are reported **separately** and never mixed with Protocol A numbers.
 
 ### 8.3 Splits
 
+Official train has 1,500 rows. The 4 rows at 0-based CSV rows 559, 900, 901 and 1114 have a
+`(title, body)` that also appears in the official test file; they are dropped, leaving 1,496.
+
 | Split | Derived from | Size | Used for |
 |---|---|---|---|
-| `train` | Official train minus `val` | ≈ 85% of official train | Fine-tuning (the notebook also carves its own calibration slice from this) |
-| `val` | Official train, stratified by `repo × label`, seed 42 | ≈ 15% of official train | Model selection, **threshold fitting**, ECE check |
-| `test` | Official test, untouched | As published | Final metrics, evaluated **once** after thresholds are frozen |
+| `train` | The 1,496 kept official-train rows minus `val` | ≈ 1,196 | Fine-tuning (the notebook also carves its own calibration slice from this) |
+| `val` | 20% of the 1,496 kept rows, stratified by `repo × label`, seed 42, drawn only from rows **not** listed in `results/phase0_sample_ids.txt` (those are forced into `train`) | ≈ 300 | Model selection, **threshold fitting**, ECE check |
+| `test` | Official test, all 1,500 rows, untouched | 1,500 | Final metrics, evaluated **once** after thresholds are frozen |
 
-Split membership is written to `data/manifests/{train,val,test}.txt` (one issue ID or URL per line)
-and committed.
+Split membership is written to `data/manifests/{train,val,test}.txt` and committed. The dropped rows
+are listed in `data/manifests/dropped_train.txt` (id, content hash, reason).
+
+- **Manifest line format:** `<id>\t<content_sha1>`.
+- **ID format:** `nlbse24-<source>-<row:04d>`, where `source` is the CSV the row came from (`train`
+  or `test`) and `row` is its 0-based index in that raw CSV (pinned by SHA-256, §8.1). A `val` row
+  therefore carries the `train` prefix.
+- **`content_sha1`:** SHA-1 over the UTF-8 bytes of the raw `title + "\n" + body`.
 
 ### 8.4 Preprocessing (single source: `src/laya_triage/preprocess.py`)
 
@@ -416,7 +428,7 @@ with default 0.0 (§9.5).
 
 ```json
 {
-  "id": "nlbse24-microsoft/vscode-123456",
+  "id": "nlbse24-train-0123",
   "repo": "microsoft/vscode",
   "state": {"title": "Terminal crashes when ...", "body": "Steps to reproduce ..."},
   "questions": {
@@ -434,6 +446,8 @@ with default 0.0 (§9.5).
 }
 ```
 
+IDs are synthetic (§8.3) because the dataset has none.
+
 > The notebook's dataset rows store `state`, `questions`, and `gold` as JSON strings. The adapter
 > cell must `json.dumps` them if it reuses the notebook's loading code unchanged. Verify in Phase 3.
 
@@ -448,7 +462,10 @@ with default 0.0 (§9.5).
 
 ### 8.7 Data quality checks (must pass before Phase 3)
 
-- No issue ID appears in more than one split. This is an automated assertion.
+- No ID and no content hash appears in more than one of train/val/test. This is an automated
+  assertion.
+- train + val + dropped = 1,500 official train rows.
+- The Phase 0 sample rows (`results/phase0_sample_ids.txt`) are all in train.
 - Class counts per split and per repo are reported in `data/DATA_CARD.md`.
 - 30 random training rows are manually reviewed (label looks right, cleaning didn't destroy content).
   Findings go in `DATA_CARD.md`.
@@ -556,8 +573,9 @@ position. It is not part of the v1.0 contract.
 
 | Metric | Definition | Tool |
 |---|---|---|
-| Accuracy | Fraction correct | sklearn / `laya-evals` |
-| **Macro-F1 (headline)** | Unweighted mean of per-class F1 | sklearn |
+| Accuracy | Fraction correct; reported in `metrics_test.json` | sklearn / `laya-evals` |
+| **Cross-repo macro-F1 (headline)** | Arithmetic mean of the 5 per-repo macro-F1 scores on test (the definition behind the published SetFit 0.8270) | sklearn |
+| Pooled macro-F1 | Unweighted mean of per-class F1 over all test issues; reported in `metrics_test.json` | sklearn |
 | Per-class P/R/F1 | For `bug`, `feature`, `question` | sklearn |
 | Per-repo macro-F1 | Same, sliced by repo | sklearn |
 | ECE (15 bins) | On `answer_confidence` | `laya-evals` / `laya.common.ece_score` |
@@ -576,21 +594,30 @@ position. It is not part of the v1.0 contract.
 ### 10.4 Threshold selection procedure (frozen before touching test)
 
 1. Run M1 on **val** on **CPU, fp32**, the same numerics as the Action.
-2. For each label ℓ, choose the smallest τ_ℓ such that precision on val issues predicted as ℓ with
-   `answer_confidence ≥ τ_ℓ` is ≥ 0.90.
-3. If a class cannot reach 0.90, set τ_ℓ = 1.01 (never auto-apply that label) and document it.
-4. Write the thresholds to `config/triage.default.yml` and commit **before** running test.
-5. Run test once. Report the achieved precision and coverage. Do not re-tune on test.
+2. For each label ℓ, the candidate thresholds τ are the distinct `answer_confidence` values among
+   val issues predicted as ℓ. S(τ) is the set of those issues with `answer_confidence ≥ τ`. Only
+   τ with |S(τ)| ≥ 20 are considered.
+3. For each candidate τ, bootstrap the issues in S(τ): 2,000 resamples with replacement, seed 42.
+   The 5th percentile of precision across resamples is the lower bound.
+4. Choose the smallest τ_ℓ whose lower bound is ≥ 0.90.
+5. If no τ qualifies, set τ_ℓ = 1.01 (never auto-apply that label) and document it.
+6. Also record the point-estimate threshold (the smallest τ with val precision ≥ 0.90 and
+   |S(τ)| ≥ 20) and its coverage, for comparison. The config uses the lower-bound τ_ℓ.
+7. Write the thresholds to `config/triage.default.yml` and commit **before** running test. Run test
+   once. Report the achieved precision and coverage. Do not re-tune on test.
+
+Lower-bound thresholds are conservative, so coverage will be lower than with point-estimate
+thresholds.
 
 ### 10.5 Results table template (fill in after Phase 3)
 
-| System | Acc | Macro-F1 | F1 bug | F1 feature | F1 question | ECE | Coverage @ ≥90% prec | CPU p50 ms |
-|---|---|---|---|---|---|---|---|---|
-| B0 majority | | | | | | — | — | — |
-| B1 TF-IDF+LR | | | | | | | | |
-| B2 Laya zero-shot | | | | | | | | |
-| B3 NLBSE'24 baseline | | | | | | — | — | — |
-| **M1 ours** | | | | | | | | |
+| System | Cross-repo macro-F1 (headline) | Pooled macro-F1 | Acc | F1 bug | F1 feature | F1 question | ECE | Coverage @ ≥90% prec | CPU p50 ms |
+|---|---|---|---|---|---|---|---|---|---|
+| B0 majority | | | | | | | — | — | — |
+| B1 TF-IDF+LR | | | | | | | | | |
+| B2 Laya zero-shot | | | | | | | | | |
+| B3 SetFit baseline 0.8270 (NLBSE'24 repo); RoBERTa/fastText results in the upstream `output/` folder may be cited after verification in Phase 2 | | | | | | | — | — | — |
+| **M1 ours** | | | | | | | | | |
 
 ---
 
@@ -618,6 +645,8 @@ laya-triage/
 │   ├── github_client.py          # add_labels, comment, retry/backoff
 │   └── reporter.py               # job summary markdown + JSONL artifact
 ├── training/
+│   ├── fetch_data.py             # NLBSE'24 at pinned commit + SHA-256 check (never run in CI)
+│   ├── nlbse_data.py             # NLBSE'24 raw CSV loading, synthetic IDs, content hashes (§8.3)
 │   ├── build_dataset.py          # NLBSE -> data/processed/*.jsonl + manifests
 │   └── finetune_kaggle.ipynb     # adapted Laya notebook
 ├── eval/
@@ -794,14 +823,18 @@ Actions cache. If latency > 1 s p95, note it and keep going; v1.2 ONNX is the mi
 Tasks:
 1. Download NLBSE'24. Verify the license, field names, and official split sizes, and record them in
    `DATA_CARD.md`.
-2. Implement `preprocess.py` with unit tests covering every rule in §8.4.
-3. Implement `build_dataset.py`: clean, carve a stratified val split, write training rows (§8.5),
+2. Implement `training/fetch_data.py`: download NLBSE'24 at the pinned upstream commit (§8.1) and
+   check the SHA-256 of both CSVs. Never run in CI.
+3. Implement `preprocess.py` with unit tests covering every rule in §8.4.
+4. Implement `build_dataset.py`: clean, carve a stratified val split, write training rows (§8.5),
    eval rows (§8.6), and manifests.
-4. Run the §8.7 checks.
+5. Write `tests/test_build_dataset.py`.
+6. Manually review 30 random training rows; findings go in `DATA_CARD.md`.
+7. Run the §8.7 checks.
 
 **Deliverables:** `data/manifests/*`, `DATA_CARD.md`, `build_dataset.py`, preprocess tests.
 
-**Gate:** all §8.7 checks pass, and `laya-evals validate` passes on all eval files.
+**Gate:** all §8.7 checks pass, `laya-evals validate` passes on val/test files, tests green.
 
 ### Phase 2: Baselines (≈ 2 days)
 
@@ -908,7 +941,7 @@ the Action (optionally to the Marketplace), finalise the HF model card, and writ
 |---|---|---|---|---|
 | R1 | Fine-tuned model doesn't beat TF-IDF+LR | Medium | Medium | Report honestly. The calibrated gating plus Action is still the deliverable. Try Protocol B data. |
 | R2 | `question` class is weak (common in the literature) | High | Low | Per-class threshold. If needed, never auto-apply `question` and escalate instead. |
-| R3 | CPU latency or load time too slow on the runner | Medium | Medium | Caching, then ONNX INT8 (v1.2), then the server fallback (ADR-3). |
+| R3 | CPU latency or load time too slow on the runner | Medium | Medium | Caching, then ONNX INT8 (v1.2), then the server fallback (ADR-3). On the runner, install the CPU-only torch wheel (PyTorch CPU index) and fetch only the minimal checkpoint files. |
 | R4 | Notebook adaptation breaks (version drift, schema mismatch) | Medium | Medium | Pin `laya` and `transformers` versions from Phase 0. Smoke-train on 50 rows first. |
 | R5 | Kaggle session timeout or OOM | Low | Low | The notebook writes a rolling `checkpoint_latest/` per epoch. Small dataset means short runs. |
 | R6 | Data leakage between splits or with NLBSE'23 | Low | High | Automated ID-disjointness assertion and URL dedupe (§8.7). |
@@ -916,6 +949,8 @@ the Action (optionally to the Marketplace), finalise the HF model card, and writ
 | R8 | Script injection via issue text | Low | High | §7.6 rules, plus code review of the workflow. |
 | R9 | Scope creep (v1.1/v2.0 features before v1.0 ships) | High | High | §4.1 release map is binding, and §16 rule 3. |
 | R10 | NLBSE license restricts redistribution | Low | Medium | Do not commit the raw data. Commit only manifests and the build script. Verify in Phase 1. |
+| R11 | Balanced data (100 per class per repo, random not temporal split) differs from real repos, so calibration and thresholds may not transfer | TBD | TBD | The sandbox run and a README limitation. |
+| R12 | Small val set makes thresholds noisy | TBD | TBD | The 20% split, the bootstrap lower bound, and \|S\| ≥ 20 (§10.4). |
 
 ---
 
@@ -953,6 +988,7 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-01 | 1.0 | Initial specification | Prasanna + Claude |
 | 2026-10-02 | 1.0.1 | Phase 0 clarifications. Env: Python 3.11 (Homebrew); `laya==0.3.23` is the only runtime dep, plus `dev` extra (pytest, ruff) pinned; lock file deferred to Linux/CI in Phase 4; macOS versions recorded in `results/phase0.md`. Skeleton: no placeholder `action.yml`, `config/triage.default.yml`, workflows, notebook, or metrics files until their phase; `.gitkeep` for empty dirs. Phase 0 tasks 2–5: record base checkpoint commit SHA, load at that revision, record download size; NLBSE'24 raw data may be downloaded to `data/raw/` (gitignored) and its license noted, but stop if no official train/test split exists; wording sample = 100 issues from official train only, stratified by label, seed 42, IDs saved to `results/phase0_sample_ids.txt` and forced into `train` in Phase 1; zero-shot input is raw title + body with only the §8.4 step-5 truncation; pick wording by macro-F1 (accuracy secondary), keep §9.2 wording unless another wins by ≥ 5 points or all are near chance; latency on local Apple-silicon CPU fp32 after warm-up, record p50/p95 and thread count, plus one run at `torch.set_num_threads(2)`; Q4 stays open until Phase 4. | Prasanna + Claude |
 | 2026-10-02 | 1.0.2 | Phase 0 results. §9.2 wording frozen to W1' (instructions/criteria in `questions.py`): zero-shot on 100 stratified train issues it beat the v1.0 wording by +11.3 macro-F1 points at 512/192 (0.746 vs 0.633) and +10.7 at 1024/256 (0.729 vs 0.622), meeting the ≥ 5-point rule at both settings; §8.5 example updated to match. §9.1/§10.1 B2: root checkpoint's native budget is 512/192 (zero-shot), fine-tuning sets 1024/256 as the Laya notebook does. §17: Q2 resolved (macOS arm64: laya 0.3.23, torch 2.14.1, transformers 5.18.0; Linux pins in Phase 4); Q3 resolved (full snapshot 2.37 GB; `laya.load` needs a minimal 846 MB set, 846,201,702 bytes incl. the cached file listing). Details and caveats in `results/phase0.md`. | Prasanna + Claude |
+| 2026-10-02 | 1.0.3 | Phase 1 pre-work (owner decisions: synthetic IDs, content-hash leakage checks, 20% val + bootstrap lower-bound thresholds, cross-repo headline metric). §8.3: drop the 4 official-train rows (559, 900, 901, 1114) whose (title, body) is in test, leaving 1,496; `val` = 20% (≈ 300) stratified by repo × label, seed 42, excluding the Phase 0 sample rows (forced into `train`); `train` ≈ 1,196; `test` = all 1,500 official test rows; manifests `<id>\t<content_sha1>` with IDs `nlbse24-<source>-<row:04d>` (source = train or test) and SHA-1 over raw `title + "\n" + body`; `dropped_train.txt` added. §8.5: example ID `nlbse24-train-0123`, IDs are synthetic. §8.1/§8.2: NLBSE'24 has no IDs/URLs and an empty upstream LICENSE (raw data never committed), fetched by `training/fetch_data.py` at upstream commit `2927bc67…` with SHA-256 checks; NLBSE'23/Protocol B dedupe by content hash, not URL; Protocol A allows pretrained models fine-tuned only on the provided train set, Protocol B is non-comparable. §8.7: no ID or content hash in more than one split; train + val + dropped = 1,500; Phase 0 sample rows in train. §6.3/§10.2/§10.5: headline = cross-repo macro-F1 (mean of 5 per-repo macro-F1 on test, as behind SetFit 0.8270); pooled macro-F1 and accuracy also reported; B3 = SetFit 0.8270. §10.4: thresholds from a bootstrap lower bound (2,000 resamples, seed 42, 5th percentile ≥ 0.90, \|S\| ≥ 20), point-estimate threshold recorded for comparison. §11/§13: `training/fetch_data.py`, `training/nlbse_data.py`; Phase 1 tasks add fetch_data.py, `tests/test_build_dataset.py`, 30-row manual review; gate requires tests green. §15: R3 adds CPU-only torch wheel and minimal checkpoint fetch; new R11 (balanced data may not transfer) and R12 (small val makes thresholds noisy). | Prasanna + Claude |
 
 ---
 
