@@ -2,7 +2,7 @@
 
 The single source of truth for this project is `PROJECT_SPEC.md`. Read it before any change.
 
-- Current phase: **Phase 0** (update this line when a phase gate passes).
+- Current phase: **Phase 1** (update this line when a phase gate passes).
 - Only work on tasks from the current phase in PROJECT_SPEC.md §13.
 - Follow the rules in PROJECT_SPEC.md §16 strictly. If anything is unclear, ask; do not guess.
 - Verify every step: run tests or commands and show the output before continuing.

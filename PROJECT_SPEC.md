@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0 draft (source of truth) · **Last updated:** 2026-10-01 · **Owner:** Prasanna
+> **Status:** v1.0.2 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -422,11 +422,11 @@ with default 0.0 (§9.5).
   "questions": {
     "issue_type": {
       "type": "choice",
-      "instructions": "What kind of GitHub issue is described in `title` and `body`?",
+      "instructions": "You are triaging a newly opened GitHub issue. Using its `title` and `body`, decide which type of issue it is.",
       "criteria": {
-        "bug": "something is broken, crashes, errors, or behaves differently than documented",
-        "feature": "a request for new functionality or an enhancement to existing behaviour",
-        "question": "the author asks how to do something or seeks help or clarification"
+        "bug": "reports a defect: a crash, error message, failing build or test, regression, or behaviour that contradicts the documentation",
+        "feature": "proposes something new: a new capability, option or API, or an improvement to how existing behaviour works",
+        "question": "asks for help: how to use or configure something, why it behaves a certain way, or troubleshooting the author's own setup"
       }
     }
   },
@@ -461,6 +461,7 @@ with default 0.0 (§9.5).
 ### 9.1 Base checkpoint
 
 - `convaiinnovations/laya` (English, ModernBERT-large encoder, about 421M parameters).
+- The root checkpoint's native budget is max_len 512 / head_max_len 192; fine-tuning sets 1024/256 as in the Laya notebook (train_ddp.py overrides these).
 - The multilingual checkpoint is **not** used, because English issues perform better on the English
   checkpoint (ADR-4).
 
@@ -469,19 +470,23 @@ with default 0.0 (§9.5).
 Defined once in `src/laya_triage/questions.py` and imported everywhere:
 
 ```python
+"""Frozen issue-type question (PROJECT_SPEC.md §9.2). Changing it requires §16 rule 4."""
+
 ISSUE_TYPE_QUESTION = {
     "issue_type": {
         "type": "choice",
-        "instructions": "What kind of GitHub issue is described in `title` and `body`?",
+        "instructions": "You are triaging a newly opened GitHub issue. Using its `title` and `body`, decide which type of issue it is.",
         "criteria": {
-            "bug": "something is broken, crashes, errors, or behaves differently than documented",
-            "feature": "a request for new functionality or an enhancement to existing behaviour",
-            "question": "the author asks how to do something or seeks help or clarification",
+            "bug": "reports a defect: a crash, error message, failing build or test, regression, or behaviour that contradicts the documentation",
+            "feature": "proposes something new: a new capability, option or API, or an improvement to how existing behaviour works",
+            "question": "asks for help: how to use or configure something, why it behaves a certain way, or troubleshooting the author's own setup",
         },
     }
 }
-LABELS = ("bug", "feature", "question")   # order is part of the contract
+LABELS = ("bug", "feature", "question")  # order is part of the contract
 ```
+
+Frozen after the Phase 0 comparison (rule: >=5 macro-F1 points at both 512/192 and 1024/256); original W0 wording and results are in results/phase0.md.
 
 Rules:
 
@@ -542,7 +547,7 @@ position. It is not part of the v1.0 contract.
 |---|---|---|
 | B0 | Majority class | Floor |
 | B1 | TF-IDF (word 1–2 grams) + logistic regression, `class_weight=None` | Cheap, strong classical baseline. Must be beaten to justify a 421M model. |
-| B2 | Laya base checkpoint, zero-shot, same question schema | Shows the value of fine-tuning |
+| B2 | Laya base checkpoint, zero-shot, same question schema; zero-shot at native 512/192 (secondary run at 1024/256) | Shows the value of fine-tuning |
 | B3 | NLBSE'24 published baseline (numbers copied from the competition repo, with citation) | External reference point |
 | **M1** | **Laya fine-tuned + calibrated (ours)** | Headline |
 | M1-onnx | M1 exported to ONNX INT8 (v1.2, optional) | Latency/accuracy trade-off |
@@ -947,6 +952,7 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 |---|---|---|---|
 | 2026-10-01 | 1.0 | Initial specification | Prasanna + Claude |
 | 2026-10-02 | 1.0.1 | Phase 0 clarifications. Env: Python 3.11 (Homebrew); `laya==0.3.23` is the only runtime dep, plus `dev` extra (pytest, ruff) pinned; lock file deferred to Linux/CI in Phase 4; macOS versions recorded in `results/phase0.md`. Skeleton: no placeholder `action.yml`, `config/triage.default.yml`, workflows, notebook, or metrics files until their phase; `.gitkeep` for empty dirs. Phase 0 tasks 2–5: record base checkpoint commit SHA, load at that revision, record download size; NLBSE'24 raw data may be downloaded to `data/raw/` (gitignored) and its license noted, but stop if no official train/test split exists; wording sample = 100 issues from official train only, stratified by label, seed 42, IDs saved to `results/phase0_sample_ids.txt` and forced into `train` in Phase 1; zero-shot input is raw title + body with only the §8.4 step-5 truncation; pick wording by macro-F1 (accuracy secondary), keep §9.2 wording unless another wins by ≥ 5 points or all are near chance; latency on local Apple-silicon CPU fp32 after warm-up, record p50/p95 and thread count, plus one run at `torch.set_num_threads(2)`; Q4 stays open until Phase 4. | Prasanna + Claude |
+| 2026-10-02 | 1.0.2 | Phase 0 results. §9.2 wording frozen to W1' (instructions/criteria in `questions.py`): zero-shot on 100 stratified train issues it beat the v1.0 wording by +11.3 macro-F1 points at 512/192 (0.746 vs 0.633) and +10.7 at 1024/256 (0.729 vs 0.622), meeting the ≥ 5-point rule at both settings; §8.5 example updated to match. §9.1/§10.1 B2: root checkpoint's native budget is 512/192 (zero-shot), fine-tuning sets 1024/256 as the Laya notebook does. §17: Q2 resolved (macOS arm64: laya 0.3.23, torch 2.14.1, transformers 5.18.0; Linux pins in Phase 4); Q3 resolved (full snapshot 2.37 GB; `laya.load` needs a minimal 846 MB set, 846,201,702 bytes incl. the cached file listing). Details and caveats in `results/phase0.md`. | Prasanna + Claude |
 
 ---
 
@@ -955,8 +961,8 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | # | Item | Resolve in |
 |---|---|---|
 | Q1 | Exact NLBSE'24 split sizes, field names, and license | Phase 1 |
-| Q2 | Exact latest `laya` PyPI version and compatible `transformers`/`torch` pins | Phase 0 |
-| Q3 | Checkpoint download size and whether it fits comfortably in the Actions cache | Phase 0 |
+| Q2 | Exact latest `laya` PyPI version and compatible `transformers`/`torch` pins | **Resolved (Phase 0):** macOS arm64: laya 0.3.23, torch 2.14.1, transformers 5.18.0; Linux pins decided in Phase 4 |
+| Q3 | Checkpoint download size and whether it fits comfortably in the Actions cache | **Resolved (Phase 0):** minimal file set 846,201,702 bytes incl. the cached file listing (`trees/<sha>.json`); full snapshot 2.37 GB |
 | Q4 | Actual CPU spec and RAM of the GitHub-hosted runner used (public vs private repo runners differ) | Phase 0 / 4 |
 | Q5 | Whether the notebook's training script needs changes beyond replacing data loading (for example `max_len` from config) | Phase 3 |
 | Q6 | Whether NLBSE'23 data is needed (only if Protocol A results are weak) | After Phase 3 |
