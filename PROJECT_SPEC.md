@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.11 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.13 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -217,10 +217,18 @@ analysis is acceptable; a hidden miss is not.
 
 1. The fine-tuned model beats both the Laya zero-shot and TF-IDF+LR baselines on the headline
    cross-repo macro-F1 (§10.2) on the NLBSE'24 test split.
+   **Result (test): MET.** M1 0.8020 vs B1 0.7655 (+0.0364, paired 95% CI [+0.0151, +0.0588]), B2 0.6108
+   at 512/192 (+0.1912, [+0.1661, +0.2167]) and 0.6257 at 1024/256 (+0.1763, [+0.1505, +0.2016]).
 2. Post-calibration ECE ≤ 0.10 on the test split.
+   **Result (test): MET.** ECE 0.0454 at T 2.6968 (0.1465 at T=1).
 3. A threshold exists on validation data giving **≥ 90% precision** on auto-labelled issues. Report
-   the coverage it achieves on the test split. Reported per label (met for 0 of 3 labels).
+   the coverage it achieves on the test split. On validation a threshold meeting a 0.90 bootstrap lower
+   bound exists for 1 of 3 labels (bug, lower bound 0.909; feature and question none). On test the bug
+   threshold gave precision 0.8747 at coverage 0.2607: below the 0.90 target (not met).
+   **Result (test): NOT MET.** 391 of 1,500 issues auto-applied (bug only), precision 0.8747.
 4. NFR-1 is met, or the measured latency is documented with the ONNX plan (v1.2).
+   **Result (test): PENDING (Phase 4).** Local Apple M4 Pro CPU, fp32, model preloaded: p50 178 ms, p95 436 ms
+   (test run, 8 threads); p95 690 ms at 2 threads (Stop A, 100 val issues). Not measured on a GitHub runner.
 5. The Action runs end-to-end on a sandbox repo for at least 20 real issues opened by hand.
 
 ---
@@ -661,15 +669,39 @@ reported on test as pre-declared secondary views.
 Lower-bound thresholds are conservative, so coverage will be lower than with point-estimate
 thresholds.
 
-### 10.5 Results table template (fill in after Phase 3)
+### 10.5 Results table (test; filled in Phase 3)
 
-| System | Cross-repo macro-F1 (headline) | Pooled macro-F1 | Acc | F1 bug | F1 feature | F1 question | ECE | Coverage @ ≥90% prec | CPU p50 ms |
+Test split, 1,500 issues, Protocol A. Sources: `results/phase3/test_R1b/metrics_test.json` (M1, and the baselines
+recomputed from the committed `results/phase2/predictions_test_*.csv`); B3 copied from `results/phase2.md`.
+Details, per-repo scores and paired comparisons: `results/phase3.md` (Test results).
+
+| System | Cross-repo macro-F1 (headline) | Pooled macro-F1 | Acc | F1 bug | F1 feature | F1 question | ECE | Coverage @ val thresholds (test precision) | CPU p50 ms |
 |---|---|---|---|---|---|---|---|---|---|
-| B0 majority | | | | | | | — | — | — |
-| B1 TF-IDF+LR | | | | | | | | | |
-| B2 Laya zero-shot | | | | | | | | | |
-| B3 SetFit baseline 0.8270 (NLBSE'24 repo); RoBERTa/fastText results in the upstream `output/` folder may be cited after verification in Phase 2 | | | | | | | — | — | — |
-| **M1 ours** | | | | | | | | | |
+| B0 majority (`question`) | 0.1667 | 0.1667 | 0.3333 | 0.0000 | 0.0000 | 0.5000 | — | — | — |
+| B1 TF-IDF+LR | 0.7655 | 0.7666 | 0.7673 | 0.7843 | 0.7925 | 0.7230 | 0.0493 | 0.4187 (0.9156) [s] | 0.29 [a] |
+| B2 Laya zero-shot 512/192 (native) | 0.6108 | 0.6160 | 0.6453 | 0.6693 | 0.7757 | 0.4029 | 0.0684 | — | — [b] |
+| B2 Laya zero-shot 1024/256 | 0.6257 | 0.6310 | 0.6567 | 0.6773 | 0.7827 | 0.4330 | 0.0647 | — | — [b] |
+| B3 SetFit baseline 0.8270 (NLBSE'24 README = `output/results.json`) | 0.8270 | 0.8263 [c] | 0.8267 [c] | 0.8425 [c] | 0.8555 [c] | 0.7809 [c] | — | — | — |
+| B3 RoBERTa (`output/roberta/results.json`) | 0.7923 | 0.7926 [c] | 0.7927 [c] | 0.8052 [c] | 0.8064 [c] | 0.7663 [c] | — | — | — |
+| B3 fastText (`output/fasttext/results.json`) | 0.7184 | 0.7193 [c] | 0.7193 [c] | 0.7362 [c] | 0.7390 [c] | 0.6827 [c] | — | — | — |
+| **M1 ours** (R1b `76ece1fb…`, T 2.6968) | **0.8020** | 0.8023 | 0.8020 | 0.8033 | 0.8358 | 0.7677 | 0.0454 | 0.2607 (0.8747; below the 0.90 target) | 178 |
+
+- [a] B1 latency: `results/phase2/latency_B1.json` (first 100 val issues, local Apple M4 Pro CPU).
+  M1 latency: the test run's meta (1,500 issues, 8 threads, model preloaded, same CPU); p95 436 ms. Neither
+  is from a GitHub runner.
+- [b] B2 latency was not measured in Phase 2 or 3; `results/phase2.md` [b] cites Phase 0 under different
+  conditions (W0 wording, uncleaned input).
+- [c] **Derived, not published.** NLBSE'24 publishes per-repo, per-class P/R/F1 only; pooled per-class F1,
+  pooled macro-F1 and accuracy are recovered exactly from them because every test repo has 100 issues per
+  class (`results/phase2.md` [c]). B3 has no probabilities, so no ECE or coverage. A second SetFit result,
+  `output/setfit/results.json` (cross-repo 0.8240, provenance unknown), is a footnote only and is neither
+  averaged with nor chosen over 0.8270.
+- [s] Pre-declared secondary view: B1 under the same rule with its own val thresholds.
+- Coverage is the share of all test issues auto-applied at thresholds fitted on val (§10.4), with the
+  precision of those issues in parentheses. M1's thresholds are the config's (bug 0.6033, feature and
+  question 1.01); B2 has no thresholds. B0's ECE is computed from train priors and carries no information.
+- Protocol differences (per-repo vs pooled training, training rows, input text, model selection, copied vs
+  run, truncation, latency) are listed in `results/phase2.md` and `results/phase3.md`.
 
 ---
 
@@ -681,6 +713,8 @@ laya-triage/
 ├── CLAUDE.md                     # short pointer for coding agents (see Appendix A)
 ├── README.md                     # user-facing: what it is, install, results, demo GIF
 ├── LICENSE                       # Apache-2.0 (matches Laya)
+├── docs/
+│   └── MODEL_CARD.md             # HF model card (README of the model repo), generated; the owner uploads it
 ├── pyproject.toml                # package metadata + pinned deps
 ├── action.yml                    # composite GitHub Action definition
 ├── config/
@@ -715,6 +749,8 @@ laya-triage/
 ├── results/
 │   ├── phase0.md
 │   ├── phase3/                   # items_sha256.json: expected training-item hashes (+ generator)
+│   ├── phase3/make_model_card.py # builds docs/MODEL_CARD.md from metrics_test.json, metrics_val.json, config
+│   ├── phase3/test_report.py     # single test-run report: metrics_test.json, report tables, §10.3 figures
 │   ├── experiments.md
 │   ├── phase3/val_R1b/, phase3/test_R1b/  # M1 aggregates incl. metrics_val.json / metrics_test.json
 │   └── figures/
@@ -727,6 +763,8 @@ laya-triage/
 │   ├── test_eval_metrics.py      # eval/metrics.py on hand-computed fixtures
 │   ├── test_gating.py            # eval/gating.py (§10.4) on hand-computed fixtures
 │   ├── test_plots.py             # eval/plots.py on synthetic arrays (Agg backend)
+│   ├── test_test_report.py       # results/phase3/test_report.py helpers on synthetic inputs
+│   ├── test_model_card.py        # docs/MODEL_CARD.md builds from the metrics files and is up to date
 │   ├── test_make_items.py        # training/make_items.py; tokenizer tests @pytest.mark.slow
 │   ├── test_notebook_sync.py     # notebook == make_items.py, pins, no create_repo / token literal
 │   └── test_model_smoke.py       # @pytest.mark.slow, real model, 3 fixtures
@@ -1062,6 +1100,8 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.9 | Phase 3c-B Stop A2 (owner decisions after the R1 val run). §9.3 calibration row: the notebook fit stays in `run_meta.json`; the shipped choice temperature is refit on val by NLL with `laya.calibrate` (weights unchanged; the shipped revision differs from R1 only in `rl_agent_config.json` `"temperature"`); R1's 119-item fit (4.0188) over-softened (val ECE 0.129, val-NLL-optimal T ≈ 2.7). §10.4: the config uses τ_lb; τ_point, the full curve and B1 under the same rule are reported on test as pre-declared secondary views. | Prasanna + Claude |
 | 2026-10-02 | 1.0.10 | Phase 3c-B Stop A3b (pre-freeze housekeeping). §6.3 criterion 3 is reported per label. §10.2: coverage@precision is reported as a global-τ curve and with the config's per-label τ. §11 and §13 Phase 3: M1 aggregates (incl. `metrics_val.json` / `metrics_test.json`) live in `results/phase3/val_R1b/` and `results/phase3/test_R1b/`. Phase 4 task 6: assert `max_len` 1024 from the checkpoint config in `tests/test_model_smoke.py` (§9.4). | Prasanna + Claude |
 | 2026-10-02 | 1.0.11 | Phase 3c-B Stop C (single test run of R1b `76ece1fb…`). §6.3 criterion 3: k filled in, met for 0 of 3 labels on test (bug τ 0.6033: test precision 0.8747 at coverage 0.2607; feature and question τ 1.01). Results in `results/phase3.md` (Test results) and `results/phase3/test_R1b/`. | Prasanna + Claude |
+| 2026-10-02 | 1.0.12 | Phase 3 gate. §10.5 filled with the test numbers (B0, B1, B2 both settings, published B3 rows with the derived-values footnote, M1); its coverage column is coverage at the val thresholds with the test precision. §6.3: criterion 3 text states the val and test outcome per label; criteria 1–4 annotated with results (MET / MET / NOT MET / PENDING, Phase 4). §11: `docs/MODEL_CARD.md` and `results/phase3/make_model_card.py`. | Prasanna + Claude |
+| 2026-10-02 | 1.0.13 | §11: add `results/phase3/test_report.py`, `tests/test_test_report.py` and `tests/test_model_card.py` to the tree. | Prasanna + Claude |
 
 ---
 

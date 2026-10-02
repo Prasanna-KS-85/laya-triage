@@ -472,3 +472,41 @@ Criterion 5 is Phase 4.
 - **Criterion 2.** The val-refit temperature holds on test: ECE 0.0454 vs 0.1465 at T=1.
 - **Criterion 4.** The local numbers are within 1 s, but NFR-1 is defined on a GitHub runner, which has
   not been measured yet.
+
+## Phase 3 gate (2026-10-02)
+
+No model runs. Every number below is in a file under `results/` (or the committed config).
+
+### §13 Phase 3 deliverables
+
+| Deliverable | Status | Evidence |
+|---|---|---|
+| HF model at a pinned revision | Done | `Prasanna85/laya-issue-triage` @ `76ece1fb0eb8b32bd5d8c509293c1692a2534805` (R1b) = R1 weights `a704b3eadd185f1fa028576cfa50605b6eada4a4` + val-refit choice temperature 4.0188 → 2.6968. Only `rl_agent_config.json` `temperature[0]` differs (`results/phase3/verify_refit_snapshot.py`: 14 PASS; `results/phase3/refit/`). Ledger: `results/experiments.md` rows R1, R1b |
+| `metrics_val.json` | Done | `results/phase3/val_R1b/metrics_val.json` (R1: `results/phase3/val_R1/metrics_val.json`) |
+| `metrics_test.json` | Done | `results/phase3/test_R1b/metrics_test.json`, `report_test.md`, `predictions_test_M1_R1b.csv` + `.meta.json` (single run, exit 0) |
+| Figures (§10.3) | Done | `results/figures/reliability_M1_R1b_test.png`, `coverage_precision_M1_R1b_test.png`, `confusion_M1_R1b_vs_B1_test.png`, `per_repo_f1_M1_R1b_vs_B1_test.png` |
+| Filled results table (§10.5) | Done | `PROJECT_SPEC.md` §10.5 (v1.0.12); "Test results" above |
+| Thresholds in config | Done | `config/triage.default.yml`: bug 0.6033, feature 1.01, question 1.01, `mode: dry-run`; committed before the test run (`d6bb242`, tag `phase3-prefreeze`) |
+| HF model card (task 5) | Generated; upload pending | `docs/MODEL_CARD.md`, built by `results/phase3/make_model_card.py` from `metrics_test.json`, `metrics_val.json` and the config; `tests/test_model_card.py` checks that it builds and is up to date |
+
+### §6.3 criteria 1–4 (gate: 1–3 evaluated and reported, met or not)
+
+| # | Result | Evidence (`results/phase3/test_R1b/metrics_test.json`) |
+|---|---|---|
+| 1 | **MET** | Cross-repo macro-F1 M1 0.8020 vs B1 0.7655 (+0.0364, paired 95% CI [+0.0151, +0.0588], McNemar p 0.0026); vs B2 512/192 0.6108 (+0.1912, [+0.1661, +0.2167]); vs B2 1024/256 0.6257 (+0.1763, [+0.1505, +0.2016]) |
+| 2 | **MET** | Calibrated ECE 0.0454 (T 2.6968); 0.1465 at T=1 |
+| 3 | **NOT MET** (0 of 3 labels) | Val: only bug has a threshold whose bootstrap lower bound reaches 0.90 (τ 0.6033, lower bound 0.9091, `val_R1b/metrics_val.json`); feature and question 1.01. Test: bug precision 0.8747 at coverage 0.2607 (391 of 1,500 auto-applied), below 0.90 |
+| 4 | **PENDING (Phase 4)** | Local Apple M4 Pro CPU, fp32: p50 178 ms, p95 436 ms (test run, 8 threads); p95 690 ms at 2 threads (`val_R1/latency_M1_R1_threads2.json`). No GitHub-runner measurement |
+
+Criterion 5 is Phase 4. The Phase 3 gate requires criteria 1–3 to be evaluated and reported honestly,
+whether met or not. They are, including the criterion 3 miss.
+
+### Open items
+
+1. **Criterion 4 → Phase 4.** Measure p50/p95 on a GitHub-hosted Linux runner (NFR-1, ≤ 1 s p95). If it
+   misses, document it with the v1.2 ONNX plan.
+2. **Model card upload (owner).** Upload `docs/MODEL_CARD.md` as `README.md` of `Prasanna85/laya-issue-triage`,
+   then fill the citation placeholders (TODO) for Laya and NLBSE'24. The upload creates a new HF commit. The
+   config and the card keep pinning `76ece1fb…`, which has the same weights and config. If the pin should move
+   to the new commit, verify that it differs only in `README.md` first.
+3. **Make the HF repo public** before Phase 4's sandbox test (the Action downloads the model anonymously, NFR-4).
