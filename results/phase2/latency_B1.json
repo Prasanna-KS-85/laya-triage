@@ -1,0 +1,21 @@
+{
+ "system": "B1",
+ "issues": "first 100 val.jsonl rows, one call per issue",
+ "warmup": 3,
+ "timed": "vectorizer.transform + predict_proba (text built beforehand)",
+ "p50_ms": 0.2897079975809902,
+ "p95_ms": 0.37671251338906586,
+ "mean_ms": 0.299175379332155,
+ "max_ms": 0.4845839866902679,
+ "n": 100,
+ "versions": {
+  "python": "3.11.17",
+  "laya": "0.3.23",
+  "torch": "2.14.1",
+  "numpy": "2.4.6",
+  "scikit-learn": "1.9.1",
+  "scipy": "1.17.1",
+  "joblib": "1.6.0",
+  "threadpoolctl": "3.7.0"
+ }
+}

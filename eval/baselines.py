@@ -3,6 +3,7 @@
 Usage (from the repo root):
   .venv/bin/python eval/baselines.py run --split val [--systems B0,B1,B2_512-192,B2_1024-256]
   .venv/bin/python eval/baselines.py report --split val
+  .venv/bin/python eval/baselines.py latency-b1
 
 - B0: majority class of train.jsonl (ties -> LABELS order); probabilities = train class priors.
 - B1: TF-IDF (word 1-2 grams) + LogisticRegression(class_weight=None), fit on train.jsonl only,
@@ -258,6 +259,30 @@ def run_b2(split, system, issues):
     write_predictions(split, system, issues, preds, probs, meta)
 
 
+def cmd_latency_b1(n=100, warmup=3):
+    """B1 CPU latency per issue incl. vectorising: frozen config fit on train, first n val issues."""
+    import numpy as np
+
+    cfg = json.loads(B1_CONFIG.read_text())
+    vec, clf, _ = fit_b1(load_split("train"), cfg["classifier"]["C"], cfg["vectorizer"]["min_df"],
+                         cfg["vectorizer"]["sublinear_tf"])
+    issues = load_split("val")
+    for i in issues[:warmup]:
+        clf.predict_proba(vec.transform([text(i)]))
+    ms = []
+    for i in issues[:n]:
+        s = text(i)
+        t = time.perf_counter()
+        clf.predict_proba(vec.transform([s]))
+        ms.append((time.perf_counter() - t) * 1000)
+    out = {"system": "B1", "issues": f"first {n} val.jsonl rows, one call per issue",
+           "warmup": warmup, "timed": "vectorizer.transform + predict_proba (text built beforehand)",
+           "p50_ms": float(np.percentile(ms, 50)), "p95_ms": float(np.percentile(ms, 95)),
+           "mean_ms": float(np.mean(ms)), "max_ms": float(max(ms)), "n": len(ms), "versions": versions()}
+    (OUT / "latency_B1.json").write_text(json.dumps(out, indent=1) + "\n")
+    print(json.dumps({k: v for k, v in out.items() if k != "versions"}, indent=1))
+
+
 # ---- test guard ----
 
 def check_test_allowed(systems):
@@ -345,14 +370,18 @@ def print_report(split, report):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("command", choices=("run", "report"))
-    ap.add_argument("--split", choices=("val", "test"), required=True)
+    ap.add_argument("command", choices=("run", "report", "latency-b1"))
+    ap.add_argument("--split", choices=("val", "test"), help="required for run and report")
     ap.add_argument("--systems", default=",".join(SYSTEMS), help="comma-separated subset of %(default)s")
     args = ap.parse_args(argv)
     systems = args.systems.split(",")
     if not set(systems) <= set(SYSTEMS):
         ap.error(f"unknown systems: {sorted(set(systems) - set(SYSTEMS))}")
-    if args.command == "run":
+    if args.command == "latency-b1":
+        cmd_latency_b1()
+    elif args.split is None:
+        ap.error("--split is required for run and report")
+    elif args.command == "run":
         cmd_run(args.split, systems)
     else:
         cmd_report(args.split)
