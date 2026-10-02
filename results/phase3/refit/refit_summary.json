@@ -1,0 +1,46 @@
+{
+ "model": "Prasanna85/laya-issue-triage",
+ "revision": "a704b3eadd185f1fa028576cfa50605b6eada4a4",
+ "n_val": 300,
+ "note": "in-sample: fitted on val",
+ "fitter": "laya.calibrate.fit_temperature_map (type-level fit_one_temperature: NLL + LBFGS on log T, clamped to [0.5, 5.0]); records from laya.calibrate.records_from_labeled",
+ "fit_output": {
+  "temperature": [
+   2.6967830657958984,
+   1.0,
+   1.0
+  ],
+  "temperature_by_options": {},
+  "n_by_bucket": {
+   "choice:3-5": 300
+  }
+ },
+ "T_notebook": 4.018789291381836,
+ "T_val_raw": 2.6967830657958984,
+ "T_val": 2.6968,
+ "grid_check": {
+  "grid": "0.5..5.0 step 0.01",
+  "T_min_nll": 2.7,
+  "agree_within": 0.02,
+  "abs_diff": 0.0032
+ },
+ "labels_equal_R1": "300/300",
+ "t1_logits_vs_saved_R1_p_T1_max_abs_dev": 0.0,
+ "table": [
+  {
+   "T": 4.018789291381836,
+   "nll": 0.4813069214840353,
+   "ece": 0.12881707216310787,
+   "brier": 0.24739768466975898,
+   "accuracy": 0.87
+  },
+  {
+   "T": 2.6968,
+   "nll": 0.4455150935055284,
+   "ece": 0.06991192153149849,
+   "brier": 0.22317824964869057,
+   "accuracy": 0.87
+  }
+ ],
+ "config_diff": "--- snapshot/rl_agent_config.json\n+++ refit/rl_agent_config.json\n@@ -11,7 +11,7 @@\n   \"amp_dtype\": \"bf16\",\n   \"model_name\": \"laya-issue-triage\",\n   \"temperature\": [\n-    4.018789291381836,\n+    2.6968,\n     1.2,\n     1.2\n   ],\n"
+}

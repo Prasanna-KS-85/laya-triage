@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.8 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.9 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -530,7 +530,7 @@ Rules:
 | Memory | fp16 autocast, gradient checkpointing on encoder and head, grad-norm clip 1.0 |
 | Sequence budget | `max_len` 1024, `head_max_len` 256 |
 | Loss | RLCD policy-gradient term (proper-scoring-rule reward) + soft cross-entropy on `gold` |
-| Calibration | Notebook fits one temperature per type on its held-out calibration slice. Inherited `temperature_by_options` is removed. |
+| Calibration | The notebook fits one temperature per type on its held-out calibration slice and drops the inherited `temperature_by_options`; that fit is kept in `run_meta.json`. The shipped choice temperature is refit on val by NLL with laya's own fitter (`laya.calibrate.fit_temperature_map` on `records_from_labeled` logits, `results/phase3/refit_temperature.py`); weights are unchanged, so the shipped revision differs from the trained one only in `rl_agent_config.json` `"temperature"`. For R1 the notebook's 119-item fit (4.0188) over-softened (val ECE 0.129; the val-NLL-optimal T is about 2.7). |
 | Output | Push to `Prasanna85/laya-issue-triage`. Record the commit SHA. |
 | Seed | 42 |
 
@@ -651,6 +651,9 @@ position. It is not part of the v1.0 contract.
 Candidate thresholds are the distinct val `answer_confidence` values among issues predicted ℓ, and every
 candidate's 2,000 resamples come from a fresh `numpy.random.RandomState(42 + i)`, where i is ℓ's index
 in `LABELS` (`eval/gating.py`).
+
+The config uses τ_lb. τ_point, the full coverage–precision curve, and B1 under the same rule are
+reported on test as pre-declared secondary views.
 
 Lower-bound thresholds are conservative, so coverage will be lower than with point-estimate
 thresholds.
@@ -1051,6 +1054,7 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.6 | Phase 3a (notebook adaptation). §9.3: adapted from the Laya notebook at `v0.3.23` = commit `d8a2e597…` (`ae3222b…` is the tag object); base pinned at `55cf4c4e…` with the minimal file set, anonymous download; items built by `training/make_items.py` at 1024/256 (upstream builds at the root's 512/192 while saving 1024/256); Kaggle version pins and the items-hash parity rule (`results/phase3/items_sha256.json`); 68 optimizer steps; deviations from upstream `train_ddp.py` (true `T_max` 68 vs upstream 64, torch/CUDA seeding with SEED + rank, calibration seed 20260922 kept, `model_name`). §8.5: JSON-string note resolved. §11: `training/make_items.py`, `results/phase3/`, `tests/test_make_items.py`, `tests/test_notebook_sync.py`. §12.3: repo `Prasanna85/laya-issue-triage`. §13 Phase 3 task 1 names `make_items.py`. §17: Q5 and Q7 resolved. | Prasanna + Claude |
 | 2026-10-02 | 1.0.7 | §11: add `training/build_notebook.py`, which generates `training/finetune_kaggle.ipynb`; `tests/test_notebook_sync.py` checks that regenerating gives the committed notebook byte for byte. §7.3 and §9.3: HF repo placeholders replaced with `Prasanna85/laya-issue-triage`. | Prasanna + Claude |
 | 2026-10-02 | 1.0.8 | Phase 3c-A (evaluation tooling). §10.4: candidate thresholds are the distinct val `answer_confidence` values among issues predicted ℓ; bootstrap seed `numpy.random.RandomState(42 + index of ℓ in LABELS)`, fresh per candidate. §11: `tests/test_gating.py`, `tests/test_plots.py`. | Prasanna + Claude |
+| 2026-10-02 | 1.0.9 | Phase 3c-B Stop A2 (owner decisions after the R1 val run). §9.3 calibration row: the notebook fit stays in `run_meta.json`; the shipped choice temperature is refit on val by NLL with `laya.calibrate` (weights unchanged; the shipped revision differs from R1 only in `rl_agent_config.json` `"temperature"`); R1's 119-item fit (4.0188) over-softened (val ECE 0.129, val-NLL-optimal T ≈ 2.7). §10.4: the config uses τ_lb; τ_point, the full curve and B1 under the same rule are reported on test as pre-declared secondary views. | Prasanna + Claude |
 
 ---
 

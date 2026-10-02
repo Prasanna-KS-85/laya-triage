@@ -120,3 +120,40 @@ Cold load, Phase 0 method (fresh process, offline, `results/phase3/latency_probe
 2,863 MiB. `/usr/bin/time -l` whole process: max RSS 3,002,155,008 B, peak footprint 2,632,944,496 B. A
 second run (2 threads) loaded in 2.75 s with peak RSS 2,864 MiB. The OS page cache was warm in both.
 11.3% of val states are truncated at 1024/256.
+
+## Owner decisions after Stop A (2026-10-02)
+
+1. **R1 accepted.** Val cross-repo macro-F1 0.8691 ≥ 0.787; no §9.5 experiments were run.
+2. **§10.4 stays as written.** The shipped config uses τ_lb. τ_point, the full coverage–precision curve
+   and B1 under the same rule are reported on test as pre-declared secondary views.
+3. **Temperature refit on val.** The notebook-fitted choice temperature 4.0188 (119 calibration items) is
+   replaced by one fitted on val with standard temperature scaling; weights are unchanged.
+
+## R1b: choice temperature refit on val (Stop A2)
+
+`.venv/bin/python results/phase3/refit_temperature.py` (offline; HF cache only read):
+- **Logits:** raw T=1 logits of the 300 val issues from `laya.calibrate.records_from_labeled`, targets
+  one-hot gold. They reproduce R1's saved `p_*_T1` columns exactly (max |dev| 0.0).
+- **Fit:** laya's own fitter, `laya.calibrate.fit_temperature_map`. Its type-level `fit_one_temperature`
+  is NLL + LBFGS on log T, clamped to [0.5, 5.0], and is laya's port of the notebook fitter.
+  300 records is below the 2,000-record bucket floor, so no `temperature_by_options` is produced.
+- **T_val = 2.6968** (raw 2.696783). The 0.01-grid NLL minimum is 2.70, |difference| 0.0032 ≤ 0.02.
+- **Labels:** argmax at T_val equals R1 on 300/300.
+
+Val, **in-sample (fitted on val)**, computed from the unrounded logits:
+
+| T | NLL | ECE (15 bins) | Brier | Accuracy |
+|---|---|---|---|---|
+| 4.0188 (notebook fit) | 0.4813 | 0.1288 | 0.2474 | 0.8700 |
+| **2.6968 (val refit)** | **0.4455** | **0.0699** | **0.2232** | 0.8700 |
+
+`results/phase3/refit/rl_agent_config.json` is the snapshot's config with only `temperature[0]` replaced
+(4.018789291381836 → 2.6968). A unified diff shows that one line, and the key order is unchanged. Summary:
+`results/phase3/refit/refit_summary.json`.
+
+**Caveats.**
+- Val ECE after the refit is in-sample: T was fitted on the same 300 issues. Only test ECE counts for
+  §6.3 criterion 2.
+- The refit changes every `answer_confidence`, so the τ_lb thresholds from Stop A (fitted at T 4.0188)
+  no longer apply. They must be recomputed from val predictions of the new revision (R1b) before
+  `config/triage.default.yml` is written.
