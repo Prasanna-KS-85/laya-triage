@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.16 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.18 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -390,7 +390,8 @@ Action layer (`action.yml`):
   `constraints-linux.txt`. `setup-python`'s `cache: pip` is not used: it needs a dependency file in the consumer's
   workspace. Every restore is checked (imports, CPU-only torch); a failed check rebuilds without saving. The
   action's own code is reinstalled on every run (`--no-deps --no-build-isolation`, offline), so the cached venv
-  never runs stale action code.
+  never runs stale action code. The pins are the Linux lock generated from CI run 37009763300 (`pip freeze --all`,
+  Ubuntu 24.04.5, Python 3.11.16).
 
 ---
 
@@ -931,7 +932,7 @@ jobs:
           mode: ${{ github.event.inputs.mode }}
 ```
 
-Pin every action by full commit SHA with the tag as a comment. The sandbox version of this workflow (with runner
+Pin every action by full commit SHA with the tag as a comment. The Action is tested on ubuntu-24.04; ubuntu-latest moves to Ubuntu 26 on 2026-10-19 and is to be re-tested after that. The sandbox version of this workflow (with runner
 diagnostics and the NFR-1 probe) is `sandbox/workflow.example.yml`.
 
 ### 12.6 Escalation comment templates (fixed text)
@@ -1181,6 +1182,8 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.14 | Phase 4a (owner decisions D1–D6 and rulings). FR-5: skip pull requests, `issues` events whose action is not `opened` (only when an action is present), and issues already carrying the escalation label; case-insensitive comparisons. §7.5: retries are 3 retries (2 s, 4 s, 8 s), also for 429 and network errors; errors are recorded as exception type and frames, never the message; labels are checked before adding; misconfiguration exits 1 by design, NFR-5 concerns runtime faults. §12.2: `classify_batch` uses `predict_batch`, verified equal to `predict` (max \|Δp\| 0.0 on 33 issues). §12.3: `comment_on_escalate` defaults to false. §12.6: two templates, (b) for τ > 1.0. §11: new test files. Phase 4 task 7: parity test. | Prasanna + Claude |
 | 2026-10-02 | 1.0.15 | Phase 4b (Action, CI, sandbox kit; owner rulings on the Stop A design). §7.5: action-layer fail-soft table. §7.7: model cache keyed from the merged config via `--print-model`, saved only after a successful load, offline on a verified hit; dependency venv cache keyed by the exact Python version and the pins hash, checked on restore (replaces `cache: pip`). §11: `constraints-linux.txt`, `sandbox/`, `results/phase4.md`, `tests/test_workflows.py`, `tests/test_sandbox.py`; dogfood `triage.yml` deferred. §12.4: inputs (token not required, mode default empty, backfill-count validated), Linux X64, env-only inputs, artifact. §12.5: SHA-pinned example with mode input and timeout. Phase 4 tasks 3-5: lock file, workflow test, sandbox runbook with authored fixtures created via the gh CLI, NFR-1 probe. §15: R13. | Prasanna + Claude |
 | 2026-10-02 | 1.0.16 | §6.3 criterion 5: the sandbox run is 22 authored fixtures created via the gh CLI plus 2 issues opened by hand in the web UI, all as real `issues.opened` events. | Prasanna + Claude |
+| 2026-10-02 | 1.0.17 | `constraints-linux.txt` is the Linux lock (36 pins) generated from CI run 37009763300 (commit f8267ca), replacing the macOS-derived pins; §7.7 states its source. CI and the sandbox workflow run on `ubuntu-24.04`; §12.5 keeps `ubuntu-latest` for consumers, with a re-test note for Ubuntu 26 (2026-10-19). | Prasanna + Claude |
+| 2026-10-02 | 1.0.18 | The cold-install step of `action.yml` records which torch install path succeeded (`cpu-index-only` or `fallback: extra-index-url`) in the step summary and log. | Prasanna + Claude |
 
 ---
 

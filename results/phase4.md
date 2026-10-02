@@ -17,6 +17,25 @@ and the sandbox kit in `sandbox/` (runbook: `sandbox/README.md`). The sandbox fi
 created via the gh CLI; `sandbox/expected_local.json` holds the local production-path results for them (Apple M4 Pro,
 CPU fp32; `classify_batch` vs `classify` max |Δp| 0.0).
 
+### Linux lock (2026-10-02)
+
+`constraints-linux.txt` was rebuilt from the `requirements-linux-lock` artifact of CI run **37009763300** (ci.yml
+`lock-linux` job, commit `f8267ca`): `pip freeze --all` on **Ubuntu 24.04.5 LTS x86_64, Python 3.11.16** (the runner
+image version is not recorded in the artifact). 36 packages, written as PEP 503-normalised `name==version` lines in
+alphabetical order, with `torch==2.14.1` (the freeze lists `2.14.1+cpu`); `tests/test_constraints.py` checks it.
+
+- Checks on the freeze: no `nvidia-*`, no `triton`, no `+cu` versions; torch is `2.14.1+cpu`; laya-triage itself is
+  not listed.
+- Against the previous macOS-derived pins (11 packages): no version changes; only torch's local label (`2.14.1` ->
+  `2.14.1+cpu`, written as `2.14.1`). 25 transitive packages are pinned for the first time.
+- For information, against the local macOS evaluation venv: filelock 4.0.8 (macOS) vs 3.32.3 (Linux), fsspec
+  2026.9.0 vs 2026.7.0.
+
+CI and the sandbox workflow now run on `ubuntu-24.04`.
+
+- [ ] TODO: The Action is tested on ubuntu-24.04; ubuntu-latest moves to Ubuntu 26 on 2026-10-19 and is to be
+  re-tested after that.
+
 ### FR-5 coverage that the sandbox cannot show
 
 Two skip rules cannot be produced on the sandbox repository and are covered by unit tests only:
@@ -37,6 +56,7 @@ Two skip rules cannot be produced on the sandbox repository and are covered by u
   (`gh issue create --label ...`) are present in the `issues.opened` payload, so the skip rules fire. This is
   unverified until the first sandbox run. Fallback if they are absent: create the issue without labels, apply the
   label afterwards, and check the skip with a backfill run, which lists the labels from the REST API.
+- **v1.1 hardening idea:** `--no-build-isolation` on the full install.
 
 ### Sandbox results
 

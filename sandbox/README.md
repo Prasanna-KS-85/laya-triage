@@ -38,6 +38,9 @@ gh label create "triage: needs-human" --repo "$SB" --color fbca04 --description 
 
 ## 2. Install the workflow (dry-run: the default config, no config file in the sandbox)
 
+The workflow runs on `ubuntu-24.04` (pinned, the image the Linux lock in `constraints-linux.txt` was built on;
+ubuntu-latest moves to Ubuntu 26 on 2026-10-19 and is to be re-tested after that).
+
 ```bash
 WORK=$(mktemp -d); gh repo clone "$SB" "$WORK/sb"
 mkdir -p "$WORK/sb/.github/workflows" "$WORK/sb/.github/laya-probe"

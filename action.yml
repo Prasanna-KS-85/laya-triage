@@ -75,7 +75,14 @@ runs:
           rm -rf "$VENV"
           [ -n "$PYTHON" ] && "$PYTHON" -m venv "$VENV" || return 1
           "${PIP[@]}" pip setuptools || return 1
-          "${PIP[@]}" torch --index-url "$CPU_INDEX" || "${PIP[@]}" torch --extra-index-url "$CPU_INDEX" || return 1
+          if "${PIP[@]}" torch --index-url "$CPU_INDEX"; then
+            torch_path="cpu-index-only"
+          elif "${PIP[@]}" torch --extra-index-url "$CPU_INDEX"; then
+            torch_path="fallback: extra-index-url"
+          else
+            return 1
+          fi
+          echo "Torch install path: $torch_path" | tee -a "$GITHUB_STEP_SUMMARY"
           "${PIP[@]}" "$GITHUB_ACTION_PATH" || return 1
         }
         save=false
