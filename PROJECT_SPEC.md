@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.3 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.4 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -387,6 +387,8 @@ GitHub         Workflow            laya_triage                     HF Hub / cach
 
 Official train has 1,500 rows. The 4 rows at 0-based CSV rows 559, 900, 901 and 1114 have a
 `(title, body)` that also appears in the official test file; they are dropped, leaving 1,496.
+A row whose (title, body) is duplicated within official train is dropped in all copies; on the real
+data this coincides with the test-overlap rule (rows 559, 900, 901, 1114).
 
 | Split | Derived from | Size | Used for |
 |---|---|---|---|
@@ -454,11 +456,14 @@ IDs are synthetic (§8.3) because the dataset has none.
 ### 8.6 Evaluation row format (`laya-evals` JSONL)
 
 ```json
-{"state": {"title": "...", "body": "..."},
+{"id": "nlbse24-test-0456",
+ "state": {"title": "...", "body": "..."},
  "questions": {"issue_type": { "...same as above..." }},
  "expected": {"issue_type": "bug"},
  "tags": ["repo:microsoft/vscode"]}
 ```
+
+`laya-evals` ignores extra keys such as `"id"`, so `validate` accepts these rows.
 
 ### 8.7 Data quality checks (must pass before Phase 3)
 
@@ -831,6 +836,7 @@ Tasks:
 5. Write `tests/test_build_dataset.py`.
 6. Manually review 30 random training rows; findings go in `DATA_CARD.md`.
 7. Run the §8.7 checks.
+8. Run laya-evals as `python -m laya.evals_cli` (the launcher script breaks on paths with spaces).
 
 **Deliverables:** `data/manifests/*`, `DATA_CARD.md`, `build_dataset.py`, preprocess tests.
 
@@ -989,6 +995,7 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.1 | Phase 0 clarifications. Env: Python 3.11 (Homebrew); `laya==0.3.23` is the only runtime dep, plus `dev` extra (pytest, ruff) pinned; lock file deferred to Linux/CI in Phase 4; macOS versions recorded in `results/phase0.md`. Skeleton: no placeholder `action.yml`, `config/triage.default.yml`, workflows, notebook, or metrics files until their phase; `.gitkeep` for empty dirs. Phase 0 tasks 2–5: record base checkpoint commit SHA, load at that revision, record download size; NLBSE'24 raw data may be downloaded to `data/raw/` (gitignored) and its license noted, but stop if no official train/test split exists; wording sample = 100 issues from official train only, stratified by label, seed 42, IDs saved to `results/phase0_sample_ids.txt` and forced into `train` in Phase 1; zero-shot input is raw title + body with only the §8.4 step-5 truncation; pick wording by macro-F1 (accuracy secondary), keep §9.2 wording unless another wins by ≥ 5 points or all are near chance; latency on local Apple-silicon CPU fp32 after warm-up, record p50/p95 and thread count, plus one run at `torch.set_num_threads(2)`; Q4 stays open until Phase 4. | Prasanna + Claude |
 | 2026-10-02 | 1.0.2 | Phase 0 results. §9.2 wording frozen to W1' (instructions/criteria in `questions.py`): zero-shot on 100 stratified train issues it beat the v1.0 wording by +11.3 macro-F1 points at 512/192 (0.746 vs 0.633) and +10.7 at 1024/256 (0.729 vs 0.622), meeting the ≥ 5-point rule at both settings; §8.5 example updated to match. §9.1/§10.1 B2: root checkpoint's native budget is 512/192 (zero-shot), fine-tuning sets 1024/256 as the Laya notebook does. §17: Q2 resolved (macOS arm64: laya 0.3.23, torch 2.14.1, transformers 5.18.0; Linux pins in Phase 4); Q3 resolved (full snapshot 2.37 GB; `laya.load` needs a minimal 846 MB set, 846,201,702 bytes incl. the cached file listing). Details and caveats in `results/phase0.md`. | Prasanna + Claude |
 | 2026-10-02 | 1.0.3 | Phase 1 pre-work (owner decisions: synthetic IDs, content-hash leakage checks, 20% val + bootstrap lower-bound thresholds, cross-repo headline metric). §8.3: drop the 4 official-train rows (559, 900, 901, 1114) whose (title, body) is in test, leaving 1,496; `val` = 20% (≈ 300) stratified by repo × label, seed 42, excluding the Phase 0 sample rows (forced into `train`); `train` ≈ 1,196; `test` = all 1,500 official test rows; manifests `<id>\t<content_sha1>` with IDs `nlbse24-<source>-<row:04d>` (source = train or test) and SHA-1 over raw `title + "\n" + body`; `dropped_train.txt` added. §8.5: example ID `nlbse24-train-0123`, IDs are synthetic. §8.1/§8.2: NLBSE'24 has no IDs/URLs and an empty upstream LICENSE (raw data never committed), fetched by `training/fetch_data.py` at upstream commit `2927bc67…` with SHA-256 checks; NLBSE'23/Protocol B dedupe by content hash, not URL; Protocol A allows pretrained models fine-tuned only on the provided train set, Protocol B is non-comparable. §8.7: no ID or content hash in more than one split; train + val + dropped = 1,500; Phase 0 sample rows in train. §6.3/§10.2/§10.5: headline = cross-repo macro-F1 (mean of 5 per-repo macro-F1 on test, as behind SetFit 0.8270); pooled macro-F1 and accuracy also reported; B3 = SetFit 0.8270. §10.4: thresholds from a bootstrap lower bound (2,000 resamples, seed 42, 5th percentile ≥ 0.90, \|S\| ≥ 20), point-estimate threshold recorded for comparison. §11/§13: `training/fetch_data.py`, `training/nlbse_data.py`; Phase 1 tasks add fetch_data.py, `tests/test_build_dataset.py`, 30-row manual review; gate requires tests green. §15: R3 adds CPU-only torch wheel and minimal checkpoint fetch; new R11 (balanced data may not transfer) and R12 (small val makes thresholds noisy). | Prasanna + Claude |
+| 2026-10-02 | 1.0.4 | Phase 1 gate. §8.3: a row whose (title, body) is duplicated within official train is dropped in all copies (on the real data this coincides with the test-overlap rule: rows 559, 900, 901, 1114). §8.6: example row gains `"id": "nlbse24-test-0456"`; `laya-evals` ignores extra keys. §13 Phase 1: run laya-evals as `python -m laya.evals_cli` (the launcher script breaks on paths with spaces). | Prasanna + Claude |
 
 ---
 

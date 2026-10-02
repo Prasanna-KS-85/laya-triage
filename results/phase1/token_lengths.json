@@ -1,0 +1,63 @@
+{
+ "laya": "0.3.23",
+ "revision": "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851",
+ "state_room": {
+  "512/192": 399,
+  "1024/256": 911
+ },
+ "splits": {
+  "train": {
+   "rows": 1196,
+   "state_tokens_percentiles": {
+    "p50": 297.0,
+    "p75": 584.0,
+    "p90": 1038.0,
+    "p95": 1355.8,
+    "p99": 2220.3
+   },
+   "state_tokens_max": 2667,
+   "share_state_tokens_gt_512": 0.296,
+   "share_state_tokens_gt_1024": 0.102,
+   "share_truncated_at_512/192": 0.3796,
+   "share_truncated_at_1024/256": 0.1229
+  },
+  "val": {
+   "rows": 300,
+   "state_tokens_percentiles": {
+    "p50": 316.5,
+    "p75": 564.0,
+    "p90": 927.5,
+    "p95": 1243.4,
+    "p99": 2445.1
+   },
+   "state_tokens_max": 3006,
+   "share_state_tokens_gt_512": 0.2867,
+   "share_state_tokens_gt_1024": 0.0833,
+   "share_truncated_at_512/192": 0.3933,
+   "share_truncated_at_1024/256": 0.1133
+  },
+  "test": {
+   "rows": 1500,
+   "state_tokens_percentiles": {
+    "p50": 302.0,
+    "p75": 566.0,
+    "p90": 959.0,
+    "p95": 1360.2,
+    "p99": 2154.5
+   },
+   "state_tokens_max": 3473,
+   "share_state_tokens_gt_512": 0.2873,
+   "share_state_tokens_gt_1024": 0.088,
+   "share_truncated_at_512/192": 0.3907,
+   "share_truncated_at_1024/256": 0.1113
+  }
+ },
+ "crosscheck": {
+  "rows": 5,
+  "settings": [
+   "512/192",
+   "1024/256"
+  ],
+  "all_match": true
+ }
+}
