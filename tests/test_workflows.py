@@ -5,7 +5,8 @@ Rules (each one is shown to fire on a synthetic bad file below):
     .comment, .pull_request, .review, .discussion, .head_commit, .commits, .release, .pages, github.head_ref,
     and any github.event.*.title / .body);
 (b) no `${{ ... }}` inside a `run:` script: values reach scripts only through `env:`;
-(c) every expression elsewhere (env, with, if, key, defaults, ...) references only allow-listed contexts;
+(c) every expression elsewhere (env, with, if, key, defaults, ...) references only allow-listed contexts
+    (github.event_name is allowed: a fixed event-type string, not attacker-controlled);
 (d) every `uses:` is pinned to a 40-hex commit SHA with a `# v...` tag comment (local `./` actions excepted); the
     only exemption is the documented placeholder SHA for Prasanna-KS-85/laya-triage in sandbox/workflow.example.yml;
 (e) every `run:` step of the composite action declares `shell: bash`;
@@ -30,7 +31,7 @@ FORBIDDEN_CONTEXT = re.compile(
 EXPR = re.compile(r"\$\{\{(.*?)\}\}", re.DOTALL)
 ALLOWED = [re.compile(p) for p in (
     r"inputs\.[\w-]+", r"github\.event\.inputs\.[\w-]+", r"steps\.[\w-]+\.outputs\.[\w-]+", r"steps\.[\w-]+\.outcome",
-    r"runner\.(os|arch|temp)", r"github\.(run_id|run_attempt|token)", r"secrets\.GITHUB_TOKEN")]
+    r"runner\.(os|arch|temp)", r"github\.(run_id|run_attempt|token|event_name)", r"secrets\.GITHUB_TOKEN")]
 FUNCTIONS = {"always", "success", "failure", "cancelled", "contains", "startsWith", "endsWith", "format"}
 LITERALS = {"true", "false", "null"}
 USES = re.compile(r"^\s*-?\s*uses:\s*(\S+)\s*(#.*)?$")
@@ -145,7 +146,7 @@ BAD = {
     "(b)": GOOD_WF.replace("- run: echo ok", "- run: echo ${{ inputs.mode }}"),
     "(b) block": GOOD_WF.replace("- run: echo ok", "- run: |\n          echo hi\n          echo ${{ runner.os }}"),
     "(c) env": GOOD_WF.replace("X: ${{ inputs.mode }}", "X: ${{ github.actor }}"),
-    "(c) if": GOOD_WF.replace("- run: echo ok", "- if: github.event_name == 'issues'\n        run: echo ok"),
+    "(c) if": GOOD_WF.replace("- run: echo ok", "- if: github.actor == 'octocat'\n        run: echo ok"),
     "(c) with": GOOD_WF.replace("# v7.0.1", "# v7.0.1\n        with:\n          ref: ${{ github.sha }}"),
     "(d) tag": GOOD_WF.replace("@3d3c42e5aac5ba805825da76410c181273ba90b1", "@v7"),
     "(d) no comment": GOOD_WF.replace(" # v7.0.1", ""),
@@ -186,3 +187,42 @@ def test_references_parser():
     assert references("always() && steps.x.outputs.ok == 'true'") == ["steps.x.outputs.ok"]
     assert references(" github.event.inputs.backfill-count || '0' ") == ["github.event.inputs.backfill-count"]
     assert references("toJSON(github)") == ["toJSON()", "github"]
+
+
+WARM = "${{ github.event_name == 'schedule' || github.event.inputs.warm-cache == 'true' }}"
+
+
+def test_event_name_is_allow_listed():
+    assert references(WARM[3:-2]) == ["github.event_name", "github.event.inputs.warm-cache"]
+    text = GOOD_WF.replace("- run: echo ok", "- if: github.event_name == 'schedule'\n        run: echo ok")
+    assert check(text.replace("X: ${{ inputs.mode }}", f"X: {WARM}"), "x.yml") == []
+    assert check(GOOD_WF.replace("- run: echo ok", "- run: echo ${{ github.event_name }}"), "x.yml")[0].startswith("(b)")
+
+
+def spec_example():
+    """The YAML block of PROJECT_SPEC.md §12.5 (the consumer workflow)."""
+    spec = (ROOT / "PROJECT_SPEC.md").read_text(encoding="utf-8")
+    section = spec.split("### 12.5 Example consumer workflow", 1)[1].split("\n### ", 1)[0]
+    return re.search(r"```yaml\n(.*?)```", section, re.DOTALL).group(1)
+
+
+def test_spec_consumer_example_passes_rules_other_than_pinning():
+    # (d) is excluded: the spec shows `@<40-hex commit SHA>` as a placeholder for the release pin.
+    assert [v for v in check(spec_example(), "PROJECT_SPEC.md §12.5") if not v.startswith("(d)")] == []
+
+
+@pytest.mark.parametrize("name", ["spec", "sandbox"])
+def test_examples_warm_the_cache_on_schedule_and_dispatch(name):
+    text = spec_example() if name == "spec" else (ROOT / EXAMPLE).read_text(encoding="utf-8")
+    data = load(text)
+    assert data["on"]["schedule"] and data["on"]["workflow_dispatch"]["inputs"]["warm-cache"]["type"] == "boolean"
+    (step,) = [s for s in data["jobs"]["triage"]["steps"] if s.get("uses", "").startswith(SELF + "@")]
+    assert step["with"]["warm-cache"] == WARM
+
+
+def test_action_warm_cache_input_reaches_the_script_only_through_env():
+    data = load((ROOT / "action.yml").read_text())
+    assert data["inputs"]["warm-cache"]["default"] == "false"
+    (triage,) = [s for s in data["runs"]["steps"] if s.get("name") == "Triage"]
+    assert triage["env"]["INPUT_WARM_CACHE"] == "${{ inputs.warm-cache }}"
+    assert 'true) warm=(--warm)' in triage["run"] and '"${warm[@]}"' in triage["run"]

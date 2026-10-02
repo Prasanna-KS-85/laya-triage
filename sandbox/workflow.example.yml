@@ -1,12 +1,16 @@
 name: Laya Triage (sandbox)
 
 # Sandbox workflow for PROJECT_SPEC.md §13 Phase 4 task 4 (runbook: sandbox/README.md in Prasanna-KS-85/laya-triage).
-# Copy to .github/workflows/laya-triage.yml in the sandbox repo and replace the placeholder SHA below with the commit
+# Copy to .github/workflows/triage.yml in the sandbox repo and replace the placeholder SHA below with the commit
 # of laya-triage under test. Issue text is never put into a shell line (§7.6): the Action reads $GITHUB_EVENT_PATH.
+# Issues-triggered runs restore the caches but cannot save them (§7.7, R14); the twice-weekly schedule and the warm-cache
+# dispatch input load the model so the caches are saved and stay in use.
 
 on:
   issues:
     types: [opened]
+  schedule:
+    - cron: "17 3 * * 1,4"  # cache warm-up twice a week (Mon, Thu 03:17 UTC): margin against 7-day eviction
   workflow_dispatch:
     inputs:
       backfill-count:
@@ -15,6 +19,10 @@ on:
       mode:
         description: dry-run or apply (empty = dry-run for backfill)
         default: ""
+      warm-cache:
+        description: Only load the model and save the caches (no issues read)
+        type: boolean
+        default: false
       latency-probe:
         description: Also run the NFR-1 latency probe
         type: boolean
@@ -49,6 +57,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           backfill-count: ${{ github.event.inputs.backfill-count || '0' }}
           mode: ${{ github.event.inputs.mode }}
+          warm-cache: ${{ github.event_name == 'schedule' || github.event.inputs.warm-cache == 'true' }}
 
       - name: Latency probe (NFR-1)
         if: github.event.inputs.latency-probe == 'true'

@@ -339,3 +339,69 @@ def test_non_integer_backfill_count_fails_loudly(run):
         with pytest.raises(SystemExit) as e:
             r(["--backfill-count", bad])
         assert e.value.code == 2
+
+
+# ---- --warm: cache warm-up (§7.7, §12.4 warm-cache) ----
+
+class Exploding:
+    """A client factory or classifier attribute that must never be touched."""
+
+    def __call__(self, *a, **kw):
+        raise AssertionError("not expected in --warm")
+
+
+@pytest.mark.parametrize("event", ["schedule", "workflow_dispatch", "issues"])
+def test_warm_loads_classifies_once_and_makes_no_github_calls(run, tmp_path, capsys, event):
+    out = tmp_path / "github_output"
+    # apply mode in the config and no token: --warm must not need GitHub at all, nor read the event
+    r = run(event=event, user_config="behaviour:\n  mode: apply\n",
+            env={"GITHUB_OUTPUT": str(out), "GITHUB_TOKEN": "", "GITHUB_EVENT_PATH": str(tmp_path / "missing.json")})
+    r.client_factory = Exploding()
+    clf = FakeClassifier({0: BUG})
+    assert r(["--warm", "--mode", "apply", "--backfill-count", "5"], classifier=clf) == 0
+    assert clf.calls == [0] and clf.batch_calls == [] and r.classifier_builds == 1
+    assert out.read_text() == "model_loaded=true\n"
+    assert r.records == [] and cli.WARM_OK in r.md and cli.WARM_OK in capsys.readouterr().out
+
+
+def test_warm_state_goes_through_preprocess(run):
+    seen = []
+
+    class Recording(FakeClassifier):
+        def classify(self, state, n):
+            seen.append(state)
+            return super().classify(state, n)
+
+    r = run()
+    assert r(["--warm"], classifier=Recording({0: BUG})) == 0
+    assert seen == [cli.preprocess(cli.WARM_TITLE, cli.WARM_BODY)]
+
+
+def test_warm_model_load_failure_is_soft(run, tmp_path):
+    out = tmp_path / "github_output"
+    r = run(env={"GITHUB_OUTPUT": str(out)})
+    assert r(["--warm"], load_error=ClassifierError("model load failed", RuntimeError(SENTINEL))) == 0
+    assert out.read_text() == "model_loaded=false\n"
+    assert "ClassifierError" in r.md and SENTINEL not in r.md and cli.WARM_OK not in r.md
+
+
+def test_warm_classify_failure_is_soft_and_keeps_model_loaded(run, tmp_path, capsys):
+    out = tmp_path / "github_output"
+    r = run(env={"GITHUB_OUTPUT": str(out)})
+    assert r(["--warm"], classifier=FakeClassifier({0: BUG}, fail={0})) == 0
+    captured = capsys.readouterr()
+    assert out.read_text() == "model_loaded=true\n" and "RuntimeError" in r.md
+    assert SENTINEL not in r.md + captured.out + captured.err and cli.WARM_OK not in r.md
+
+
+def test_warm_with_invalid_config_exits_1(run, tmp_path):
+    out = tmp_path / "github_output"
+    r = run(user_config='model:\n  repo: "bad repo"\n', env={"GITHUB_OUTPUT": str(out)})
+    assert r(["--warm"], classifier=FakeClassifier({0: BUG})) == 1
+    assert r.classifier_builds == 0 and not out.exists()
+
+
+def test_warm_and_print_model_are_mutually_exclusive(run):
+    with pytest.raises(SystemExit) as e:
+        run()(["--warm", "--print-model"])
+    assert e.value.code == 2

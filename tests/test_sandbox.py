@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "sandbox"))
 
 import compare
+import create_issue
 
 from laya_triage.config import load_config
 from laya_triage.preprocess import preprocess
@@ -98,3 +99,32 @@ def test_check_reports_unknown_issues_and_unseen_fixtures(tmp_path):
     log.write_text(json.dumps(rec(issue_number=1)) + "\n" + json.dumps(rec(issue_number=99)) + "\n")
     rows, unseen = compare.check([log], {"S01": EXP, "S02": EXP}, {"1": "S01"}, 1e-3, False)
     assert [r[1] for r in rows] == ["ok", "FAIL"] and unseen == ["S02"]
+
+
+class FakeRun:
+    def __init__(self, rc=0):
+        self.calls, self.rc = [], rc
+
+    def __call__(self, args, **kw):
+        self.calls.append((args, kw))
+        return type("Done", (), {"returncode": self.rc, "stdout": "https://github.test/o/sb/issues/1\n"})()
+
+
+def test_create_issue_uses_an_argument_list_and_stdin(capsys):
+    fake = FakeRun()
+    assert create_issue.main(["--repo", "o/sb", "S20", "S11", "--title-suffix", " [apply]"], run=fake) == 0
+    by = {f["key"]: f for f in FIXTURES}
+    (a1, k1), (a2, k2) = fake.calls
+    assert a1 == ["gh", "issue", "create", "--repo", "o/sb", "--title", by["S20"]["title"] + " [apply]",
+                  "--body-file", "-", "--label", "type: bug"]
+    assert k1["input"] == by["S20"]["body"] and "shell" not in k1
+    assert a2[-2:] == ["--body-file", "-"] and k2["input"] == ""  # S11 body is null
+    out = capsys.readouterr().out
+    assert out.splitlines() == ["S20: https://github.test/o/sb/issues/1", "S11: https://github.test/o/sb/issues/1"]
+
+
+def test_create_issue_unknown_key_and_gh_failure(capsys):
+    with pytest.raises(SystemExit):
+        create_issue.main(["--repo", "o/sb", "S99"], run=FakeRun())
+    assert create_issue.main(["--repo", "o/sb", "S01", "S02"], run=(fake := FakeRun(rc=1))) == 1
+    assert len(fake.calls) == 1 and FIXTURES[0]["title"] not in capsys.readouterr().err

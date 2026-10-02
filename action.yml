@@ -25,6 +25,12 @@ inputs:
     description: If > 0 on a workflow_dispatch event, classify the N most recent open issues.
     required: false
     default: "0"
+  warm-cache:
+    description: >-
+      "true": only load the model and classify one synthetic issue so the caches are saved (no issues read, no
+      GitHub API calls). Use it on schedule or workflow_dispatch runs: issues-triggered runs cannot save caches.
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -168,6 +174,7 @@ runs:
         INPUT_CONFIG_PATH: ${{ inputs.config-path }}
         INPUT_MODE: ${{ inputs.mode }}
         INPUT_BACKFILL_COUNT: ${{ inputs.backfill-count }}
+        INPUT_WARM_CACHE: ${{ inputs.warm-cache }}
         HF_CACHE_HIT: ${{ steps.hf.outputs.cache-hit }}
         MODEL_CACHED: ${{ steps.cached.outputs.model-cached }}
       run: |
@@ -176,6 +183,12 @@ runs:
         if [ "$HF_CACHE_HIT" = "true" ] && [ "$MODEL_CACHED" = "true" ]; then
           export HF_HUB_OFFLINE=1  # warm run: no Hugging Face request at all
         fi
+        case "$INPUT_WARM_CACHE" in
+          true) warm=(--warm) ;;
+          false|"") warm=() ;;
+          *) echo "::error::laya-triage: warm-cache must be true or false."
+             exit 2 ;;
+        esac
         mkdir -p "$RUNNER_TEMP/laya-triage"
         rc=0
         timeout --kill-after=30 900 "$PY" -m laya_triage \
@@ -183,7 +196,7 @@ runs:
           --default-config "$GITHUB_ACTION_PATH/config/triage.default.yml" \
           --mode "$INPUT_MODE" \
           --backfill-count "$INPUT_BACKFILL_COUNT" \
-          --log-path "$RUNNER_TEMP/laya-triage/log.jsonl" || rc=$?
+          --log-path "$RUNNER_TEMP/laya-triage/log.jsonl" "${warm[@]}" || rc=$?
         case "$rc" in
           0) ;;
           1|2) echo "::error::laya-triage: invalid configuration, input or permission (exit $rc); see the messages above."

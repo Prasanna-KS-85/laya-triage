@@ -4,7 +4,9 @@ Arguments: --config-path (default .github/laya-triage.yml), --default-config (de
 next to the package source), --mode (dry-run | apply; overrides behaviour.mode), --backfill-count (> 0 with a
 workflow_dispatch event: the N newest open issues), --log-path (JSONL log, default laya-triage.jsonl),
 --print-model (print `model-key=<owner>--<name>--<revision>` and `model-cached=true|false` for the merged config,
-in $GITHUB_OUTPUT format, and exit; used by action.yml for the model cache key and offline mode).
+in $GITHUB_OUTPUT format, and exit; used by action.yml for the model cache key and offline mode),
+--warm (cache warm-up, §7.7: validate the config, load the model at the pinned revision, classify one built-in
+synthetic issue, write a fixed summary line and exit 0; no GitHub API calls and no token, the event is not read).
 When $GITHUB_OUTPUT is set, a run appends `model_loaded=true|false` (the model loaded in this run; action.yml saves
 the model cache only then).
 Environment: GITHUB_EVENT_NAME, GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GITHUB_STEP_SUMMARY, GITHUB_TOKEN,
@@ -36,6 +38,10 @@ from laya_triage.reporter import Outcome, Reporter, error_info
 
 DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "config" / "triage.default.yml"
 DEFAULT_API_URL = "https://api.github.com"
+# --warm: a fixed synthetic issue (never user text) and fixed summary lines.
+WARM_TITLE = "Synthetic warm-up issue: the app crashes when saving a file"
+WARM_BODY = "Synthetic text used only to load the model for the cache warm-up. Steps: open, save, crash."
+WARM_OK = "Cache warm-up: the model loaded and classified one synthetic issue; no issues were read or changed."
 
 
 def _mode(value):
@@ -60,7 +66,9 @@ def parse_args(argv=None):
     ap.add_argument("--mode", type=_mode, default=None)
     ap.add_argument("--backfill-count", type=_count, default=0)
     ap.add_argument("--log-path", default="laya-triage.jsonl")
-    ap.add_argument("--print-model", action="store_true", help="print model-key / model-cached and exit")
+    once = ap.add_mutually_exclusive_group()
+    once.add_argument("--print-model", action="store_true", help="print model-key / model-cached and exit")
+    once.add_argument("--warm", action="store_true", help="load the model, classify one synthetic issue, exit")
     return ap.parse_args(argv)
 
 
@@ -106,6 +114,8 @@ def main(argv=None, env=None, classifier_factory=None, client_factory=None) -> i
         print(f"model-key={model_key(cfg.model.repo, cfg.model.revision)}")
         print(f"model-cached={str(model_cached(cfg.model.repo, cfg.model.revision, env)).lower()}")
         return 0
+    if args.warm:
+        return _warm(cfg, env, classifier_factory, reporter)
 
     event = env.get("GITHUB_EVENT_NAME") or ""
     backfill = event == "workflow_dispatch" and args.backfill_count > 0
@@ -124,6 +134,27 @@ def main(argv=None, env=None, classifier_factory=None, client_factory=None) -> i
         print(f"laya-triage: internal error ({type(e).__name__})", file=sys.stderr)
         reporter.notice(f"internal error ({type(e).__name__})")
         return 0
+
+
+def _warm(cfg, env, classifier_factory, reporter):
+    """--warm: load the model and run one classify so action.yml saves the caches; exit 0 on any runtime fault."""
+    try:
+        classifier = classifier_factory(cfg)
+    except Exception as e:  # noqa: BLE001 - soft failure (§7.5); type name only
+        set_output(env, "model_loaded", "false")
+        reporter.notice(f"Cache warm-up: model load failed ({type(e).__name__}); nothing was cached (fail-soft).")
+        print(f"laya-triage: warm-up: model load failed ({type(e).__name__})", file=sys.stderr)
+        return 0
+    set_output(env, "model_loaded", "true")
+    try:
+        classifier.classify(preprocess(WARM_TITLE, WARM_BODY, cfg.preprocess), 0)
+    except Exception as e:  # noqa: BLE001
+        reporter.notice(f"Cache warm-up: the model loaded but the synthetic classify failed ({type(e).__name__}).")
+        print(f"laya-triage: warm-up: classify failed ({type(e).__name__})", file=sys.stderr)
+        return 0
+    reporter.notice(WARM_OK)
+    print(f"laya-triage: {WARM_OK}")
+    return 0
 
 
 def _run(cfg, args, env, event, backfill, mode, client, classifier_factory, reporter, notices):
