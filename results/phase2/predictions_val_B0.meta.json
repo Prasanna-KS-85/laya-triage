@@ -1,0 +1,11 @@
+{
+ "system": "B0",
+ "split": "val",
+ "train_counts": {
+  "bug": 398,
+  "feature": 398,
+  "question": 400
+ },
+ "majority": "question",
+ "probabilities": "train class priors"
+}

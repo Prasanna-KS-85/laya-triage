@@ -1,0 +1,22 @@
+{
+ "system": "B1",
+ "split": "val",
+ "config": "results/phase2/b1_config.json",
+ "C": 10,
+ "min_df": 2,
+ "sublinear_tf": true,
+ "n_iter": 46,
+ "vocabulary": 20331,
+ "convergence_warnings": 0,
+ "other_warnings": [],
+ "versions": {
+  "python": "3.11.17",
+  "laya": "0.3.23",
+  "torch": "2.14.1",
+  "numpy": "2.4.6",
+  "scikit-learn": "1.9.1",
+  "scipy": "1.17.1",
+  "joblib": "1.6.0",
+  "threadpoolctl": "3.7.0"
+ }
+}

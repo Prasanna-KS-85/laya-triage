@@ -1,0 +1,354 @@
+{
+ "split": "val",
+ "systems": {
+  "B0": {
+   "metrics": {
+    "n": 300,
+    "accuracy": 0.3333333333333333,
+    "cross_repo_macro_f1": 0.16666666666666666,
+    "pooled_macro_f1": 0.16666666666666666,
+    "per_class": {
+     "bug": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 100
+     },
+     "feature": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 100
+     },
+     "question": {
+      "precision": 0.3333333333333333,
+      "recall": 1.0,
+      "f1": 0.5,
+      "support": 100
+     }
+    },
+    "per_repo_macro_f1": {
+     "bitcoin/bitcoin": 0.16666666666666666,
+     "facebook/react": 0.16666666666666666,
+     "microsoft/vscode": 0.16666666666666666,
+     "opencv/opencv": 0.16666666666666666,
+     "tensorflow/tensorflow": 0.16666666666666666
+    },
+    "ece": 0.0011148272017837413,
+    "brier": 0.6666685309262047,
+    "predicted_counts": {
+     "bug": 0,
+     "feature": 0,
+     "question": 300
+    },
+    "confusion": {
+     "labels": [
+      "bug",
+      "feature",
+      "question"
+     ],
+     "rows_gold_cols_pred": [
+      [
+       0,
+       0,
+       100
+      ],
+      [
+       0,
+       0,
+       100
+      ],
+      [
+       0,
+       0,
+       100
+      ]
+     ]
+    }
+   },
+   "meta": {
+    "system": "B0",
+    "split": "val",
+    "train_counts": {
+     "bug": 398,
+     "feature": 398,
+     "question": 400
+    },
+    "majority": "question",
+    "probabilities": "train class priors"
+   }
+  },
+  "B1": {
+   "metrics": {
+    "n": 300,
+    "accuracy": 0.76,
+    "cross_repo_macro_f1": 0.7567245523019369,
+    "pooled_macro_f1": 0.7591237239225442,
+    "per_class": {
+     "bug": {
+      "precision": 0.7840909090909091,
+      "recall": 0.69,
+      "f1": 0.7340425531914891,
+      "support": 100
+     },
+     "feature": {
+      "precision": 0.7454545454545455,
+      "recall": 0.82,
+      "f1": 0.780952380952381,
+      "support": 100
+     },
+     "question": {
+      "precision": 0.7549019607843137,
+      "recall": 0.77,
+      "f1": 0.7623762376237624,
+      "support": 100
+     }
+    },
+    "per_repo_macro_f1": {
+     "bitcoin/bitcoin": 0.6926434443596915,
+     "facebook/react": 0.803594351732991,
+     "microsoft/vscode": 0.7253932253932254,
+     "opencv/opencv": 0.7426426426426426,
+     "tensorflow/tensorflow": 0.819349097381134
+    },
+    "ece": 0.060706901092700875,
+    "brier": 0.3349639645493985,
+    "predicted_counts": {
+     "bug": 88,
+     "feature": 110,
+     "question": 102
+    },
+    "confusion": {
+     "labels": [
+      "bug",
+      "feature",
+      "question"
+     ],
+     "rows_gold_cols_pred": [
+      [
+       69,
+       17,
+       14
+      ],
+      [
+       7,
+       82,
+       11
+      ],
+      [
+       12,
+       11,
+       77
+      ]
+     ]
+    }
+   },
+   "meta": {
+    "system": "B1",
+    "split": "val",
+    "config": "results/phase2/b1_config.json",
+    "C": 10,
+    "min_df": 2,
+    "sublinear_tf": true,
+    "n_iter": 46,
+    "vocabulary": 20331,
+    "convergence_warnings": 0,
+    "other_warnings": [],
+    "versions": {
+     "python": "3.11.17",
+     "laya": "0.3.23",
+     "torch": "2.14.1",
+     "numpy": "2.4.6",
+     "scikit-learn": "1.9.1",
+     "scipy": "1.17.1",
+     "joblib": "1.6.0",
+     "threadpoolctl": "3.7.0"
+    }
+   }
+  },
+  "B2_512-192": {
+   "metrics": {
+    "n": 300,
+    "accuracy": 0.62,
+    "cross_repo_macro_f1": 0.577188433990678,
+    "pooled_macro_f1": 0.5857856275014295,
+    "per_class": {
+     "bug": {
+      "precision": 0.532051282051282,
+      "recall": 0.83,
+      "f1": 0.6484375,
+      "support": 100
+     },
+     "feature": {
+      "precision": 0.7053571428571429,
+      "recall": 0.79,
+      "f1": 0.7452830188679247,
+      "support": 100
+     },
+     "question": {
+      "precision": 0.75,
+      "recall": 0.24,
+      "f1": 0.36363636363636365,
+      "support": 100
+     }
+    },
+    "per_repo_macro_f1": {
+     "bitcoin/bitcoin": 0.5863867211693299,
+     "facebook/react": 0.6933621933621933,
+     "microsoft/vscode": 0.4618580110866226,
+     "opencv/opencv": 0.4616161616161616,
+     "tensorflow/tensorflow": 0.6827190827190828
+    },
+    "ece": 0.08423500000000002,
+    "brier": 0.5144805853333336,
+    "predicted_counts": {
+     "bug": 156,
+     "feature": 112,
+     "question": 32
+    },
+    "confusion": {
+     "labels": [
+      "bug",
+      "feature",
+      "question"
+     ],
+     "rows_gold_cols_pred": [
+      [
+       83,
+       16,
+       1
+      ],
+      [
+       14,
+       79,
+       7
+      ],
+      [
+       59,
+       17,
+       24
+      ]
+     ]
+    }
+   },
+   "meta": {
+    "system": "B2_512-192",
+    "split": "val",
+    "model": "convaiinnovations/laya",
+    "revision": "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851",
+    "max_len": 512,
+    "head_max_len": 192,
+    "question": "ISSUE_TYPE_QUESTION",
+    "device": "cpu",
+    "dtype": "torch.float32",
+    "amp_enabled": false,
+    "torch_threads": 8,
+    "share_truncated": 0.3933333333333333,
+    "elapsed_s": 49.9,
+    "probabilities": "as returned by laya (rounded to 4 decimals)",
+    "versions": {
+     "python": "3.11.17",
+     "laya": "0.3.23",
+     "torch": "2.14.1",
+     "numpy": "2.4.6",
+     "scikit-learn": "1.9.1",
+     "scipy": "1.17.1",
+     "joblib": "1.6.0",
+     "threadpoolctl": "3.7.0"
+    }
+   }
+  },
+  "B2_1024-256": {
+   "metrics": {
+    "n": 300,
+    "accuracy": 0.63,
+    "cross_repo_macro_f1": 0.5918687374893958,
+    "pooled_macro_f1": 0.5988968846244965,
+    "per_class": {
+     "bug": {
+      "precision": 0.5384615384615384,
+      "recall": 0.84,
+      "f1": 0.6562499999999999,
+      "support": 100
+     },
+     "feature": {
+      "precision": 0.7181818181818181,
+      "recall": 0.79,
+      "f1": 0.7523809523809524,
+      "support": 100
+     },
+     "question": {
+      "precision": 0.7647058823529411,
+      "recall": 0.26,
+      "f1": 0.3880597014925373,
+      "support": 100
+     }
+    },
+    "per_repo_macro_f1": {
+     "bitcoin/bitcoin": 0.5863867211693299,
+     "facebook/react": 0.6933621933621933,
+     "microsoft/vscode": 0.49515074847143165,
+     "opencv/opencv": 0.5017249417249418,
+     "tensorflow/tensorflow": 0.6827190827190828
+    },
+    "ece": 0.08487966666666667,
+    "brier": 0.5099053911333336,
+    "predicted_counts": {
+     "bug": 156,
+     "feature": 110,
+     "question": 34
+    },
+    "confusion": {
+     "labels": [
+      "bug",
+      "feature",
+      "question"
+     ],
+     "rows_gold_cols_pred": [
+      [
+       84,
+       15,
+       1
+      ],
+      [
+       14,
+       79,
+       7
+      ],
+      [
+       58,
+       16,
+       26
+      ]
+     ]
+    }
+   },
+   "meta": {
+    "system": "B2_1024-256",
+    "split": "val",
+    "model": "convaiinnovations/laya",
+    "revision": "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851",
+    "max_len": 1024,
+    "head_max_len": 256,
+    "question": "ISSUE_TYPE_QUESTION",
+    "device": "cpu",
+    "dtype": "torch.float32",
+    "amp_enabled": false,
+    "torch_threads": 8,
+    "share_truncated": 0.11333333333333333,
+    "elapsed_s": 64.2,
+    "probabilities": "as returned by laya (rounded to 4 decimals)",
+    "versions": {
+     "python": "3.11.17",
+     "laya": "0.3.23",
+     "torch": "2.14.1",
+     "numpy": "2.4.6",
+     "scikit-learn": "1.9.1",
+     "scipy": "1.17.1",
+     "joblib": "1.6.0",
+     "threadpoolctl": "3.7.0"
+    }
+   }
+  }
+ }
+}

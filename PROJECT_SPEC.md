@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.4 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.5 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -658,6 +658,7 @@ laya-triage/
 │   ├── baselines.py              # B0, B1, B2
 │   ├── run_eval.py               # M1 on val/test, CPU fp32, writes results/*.json
 │   ├── gating.py                 # threshold selection + coverage–precision
+│   ├── metrics.py                # §10.2 metrics, pure functions (shared by baselines and run_eval)
 │   └── plots.py                  # figures in §10.3
 ├── data/                         # raw/ and processed/ are gitignored
 │   ├── manifests/                # committed split ID lists
@@ -673,6 +674,7 @@ laya-triage/
 │   ├── test_config.py
 │   ├── test_event_loader.py
 │   ├── test_github_client.py     # mocked HTTP
+│   ├── test_eval_metrics.py      # eval/metrics.py on hand-computed fixtures
 │   └── test_model_smoke.py       # @pytest.mark.slow, real model, 3 fixtures
 └── .github/workflows/
     ├── ci.yml                    # ruff + pytest (no model weights)
@@ -996,6 +998,7 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.2 | Phase 0 results. §9.2 wording frozen to W1' (instructions/criteria in `questions.py`): zero-shot on 100 stratified train issues it beat the v1.0 wording by +11.3 macro-F1 points at 512/192 (0.746 vs 0.633) and +10.7 at 1024/256 (0.729 vs 0.622), meeting the ≥ 5-point rule at both settings; §8.5 example updated to match. §9.1/§10.1 B2: root checkpoint's native budget is 512/192 (zero-shot), fine-tuning sets 1024/256 as the Laya notebook does. §17: Q2 resolved (macOS arm64: laya 0.3.23, torch 2.14.1, transformers 5.18.0; Linux pins in Phase 4); Q3 resolved (full snapshot 2.37 GB; `laya.load` needs a minimal 846 MB set, 846,201,702 bytes incl. the cached file listing). Details and caveats in `results/phase0.md`. | Prasanna + Claude |
 | 2026-10-02 | 1.0.3 | Phase 1 pre-work (owner decisions: synthetic IDs, content-hash leakage checks, 20% val + bootstrap lower-bound thresholds, cross-repo headline metric). §8.3: drop the 4 official-train rows (559, 900, 901, 1114) whose (title, body) is in test, leaving 1,496; `val` = 20% (≈ 300) stratified by repo × label, seed 42, excluding the Phase 0 sample rows (forced into `train`); `train` ≈ 1,196; `test` = all 1,500 official test rows; manifests `<id>\t<content_sha1>` with IDs `nlbse24-<source>-<row:04d>` (source = train or test) and SHA-1 over raw `title + "\n" + body`; `dropped_train.txt` added. §8.5: example ID `nlbse24-train-0123`, IDs are synthetic. §8.1/§8.2: NLBSE'24 has no IDs/URLs and an empty upstream LICENSE (raw data never committed), fetched by `training/fetch_data.py` at upstream commit `2927bc67…` with SHA-256 checks; NLBSE'23/Protocol B dedupe by content hash, not URL; Protocol A allows pretrained models fine-tuned only on the provided train set, Protocol B is non-comparable. §8.7: no ID or content hash in more than one split; train + val + dropped = 1,500; Phase 0 sample rows in train. §6.3/§10.2/§10.5: headline = cross-repo macro-F1 (mean of 5 per-repo macro-F1 on test, as behind SetFit 0.8270); pooled macro-F1 and accuracy also reported; B3 = SetFit 0.8270. §10.4: thresholds from a bootstrap lower bound (2,000 resamples, seed 42, 5th percentile ≥ 0.90, \|S\| ≥ 20), point-estimate threshold recorded for comparison. §11/§13: `training/fetch_data.py`, `training/nlbse_data.py`; Phase 1 tasks add fetch_data.py, `tests/test_build_dataset.py`, 30-row manual review; gate requires tests green. §15: R3 adds CPU-only torch wheel and minimal checkpoint fetch; new R11 (balanced data may not transfer) and R12 (small val makes thresholds noisy). | Prasanna + Claude |
 | 2026-10-02 | 1.0.4 | Phase 1 gate. §8.3: a row whose (title, body) is duplicated within official train is dropped in all copies (on the real data this coincides with the test-overlap rule: rows 559, 900, 901, 1114). §8.6: example row gains `"id": "nlbse24-test-0456"`; `laya-evals` ignores extra keys. §13 Phase 1: run laya-evals as `python -m laya.evals_cli` (the launcher script breaks on paths with spaces). | Prasanna + Claude |
+| 2026-10-02 | 1.0.5 | Phase 2. §11: add `eval/metrics.py` (§10.2 metrics as pure functions, shared by `eval/baselines.py` and `eval/run_eval.py`) and `tests/test_eval_metrics.py`. | Prasanna + Claude |
 
 ---
 
