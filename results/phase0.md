@@ -46,6 +46,11 @@ Compared PyPI JSON metadata for 0.3.23 against `pyproject.toml` at git tag `v0.3
 (`ae3222b3fcdf424254a2c726d72161f671a86d95`). `pyproject.toml` on `main`
 (`4aa6761be8173de4ce6d92c31b3e40b6eaf59a7c` at time of check) is byte-identical to the tag.
 
+> **Correction (2026-10-02, Phase 3):** `ae3222b3fcdf424254a2c726d72161f671a86d95` is the annotated
+> tag object of `v0.3.23`, not a commit. The tag points to commit
+> `d8a2e59781ca135169a36095056132e273cd9938` (`git ls-remote`: `refs/tags/v0.3.23^{}`). A raw-file URL
+> built with `ae3222b…` returns 404; use the commit SHA. The paragraph above is kept as originally written.
+
 | Field | PyPI 0.3.23 | GitHub `v0.3.23` pyproject | Match |
 |---|---|---|---|
 | name / version | laya / 0.3.23 | laya / 0.3.23 | yes |

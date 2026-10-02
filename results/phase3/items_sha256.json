@@ -1,0 +1,96 @@
+{
+ "laya": "0.3.23",
+ "transformers": "5.18.0",
+ "tokenizer": {
+  "repo": "convaiinnovations/laya",
+  "revision": "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851"
+ },
+ "max_len": 1024,
+ "head_max_len": 256,
+ "files": {
+  "train.jsonl": {
+   "sha256": "f57427a3b9d32ad76eab5d469eeca50561c75db39873bcf6c0d61cffc59c5113",
+   "bytes": 2505537,
+   "rows": 1196
+  },
+  "val.jsonl": {
+   "sha256": "330bab114a6ff83cf508ef948603b53a6425f012f4e9df14e69490cc02d60d6b",
+   "bytes": 618432,
+   "rows": 300
+  }
+ },
+ "items": {
+  "0.0": {
+   "rows": 1196,
+   "items": 1196,
+   "label_counts": {
+    "bug": 398,
+    "feature": 398,
+    "question": 400
+   },
+   "token_length": {
+    "p50": 410.0,
+    "p90": 1024.0,
+    "p99": 1024.0,
+    "max": 1024
+   },
+   "share_longer_than_512": 0.3796,
+   "sha256": "e1ad1d4d2810d90a307af53c0e1be821ccb72684b0fbd2f93f9ebd0e495e88ab"
+  },
+  "0.1": {
+   "rows": 1196,
+   "items": 1196,
+   "label_counts": {
+    "bug": 398,
+    "feature": 398,
+    "question": 400
+   },
+   "token_length": {
+    "p50": 410.0,
+    "p90": 1024.0,
+    "p99": 1024.0,
+    "max": 1024
+   },
+   "share_longer_than_512": 0.3796,
+   "sha256": "6e3129d41ac7e01643fb3b286afc91067ac440904592a7687fea6c140c0848d0"
+  }
+ },
+ "smoke": {
+  "0.0": {
+   "rows": 50,
+   "rule": "smoke_subset",
+   "items": 50,
+   "label_counts": {
+    "bug": 18,
+    "feature": 14,
+    "question": 18
+   },
+   "token_length": {
+    "p50": 415.0,
+    "p90": 941.2,
+    "p99": 1024.0,
+    "max": 1024
+   },
+   "share_longer_than_512": 0.34,
+   "sha256": "5ac2a8f11a3d47bfc98d023cdce0e30670a3e2dd2cbcb0037ac6cebadb2b1d9c"
+  },
+  "0.1": {
+   "rows": 50,
+   "rule": "smoke_subset",
+   "items": 50,
+   "label_counts": {
+    "bug": 18,
+    "feature": 14,
+    "question": 18
+   },
+   "token_length": {
+    "p50": 415.0,
+    "p90": 941.2,
+    "p99": 1024.0,
+    "max": 1024
+   },
+   "share_longer_than_512": 0.34,
+   "sha256": "bb9a55c0f49c638e266912aa5fed634fbc93b2ce4e68cce33eacf27d6445025a"
+  }
+ }
+}

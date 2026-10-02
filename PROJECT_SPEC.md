@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.5 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.7 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -301,7 +301,7 @@ analysis is acceptable; a hidden miss is not.
  training/finetune_kaggle.ipynb  (adapted from Laya's 2xT4 notebook)
    - RLCD fine-tune from convaiinnovations/laya
    - temperature fit (notebook's internal calibration slice)
-   - push to HF: <user>/laya-issue-triage @ revision SHA
+   - push to HF: Prasanna85/laya-issue-triage @ revision SHA
           │
           ▼
  eval/run_eval.py (CPU fp32) ──► results/
@@ -450,8 +450,9 @@ with default 0.0 (§9.5).
 
 IDs are synthetic (§8.3) because the dataset has none.
 
-> The notebook's dataset rows store `state`, `questions`, and `gold` as JSON strings. The adapter
-> cell must `json.dumps` them if it reuses the notebook's loading code unchanged. Verify in Phase 3.
+> Resolved in Phase 3: the upstream notebook's dataset rows store `state`, `questions`, and `gold` as
+> JSON strings, and its loading code calls `json.loads` on each. Our rows hold native JSON objects, and
+> `training/make_items.py` reads them directly.
 
 ### 8.6 Evaluation row format (`laya-evals` JSONL)
 
@@ -530,11 +531,47 @@ Rules:
 | Sequence budget | `max_len` 1024, `head_max_len` 256 |
 | Loss | RLCD policy-gradient term (proper-scoring-rule reward) + soft cross-entropy on `gold` |
 | Calibration | Notebook fits one temperature per type on its held-out calibration slice. Inherited `temperature_by_options` is removed. |
-| Output | Push to `<hf-user>/laya-issue-triage`. Record the commit SHA. |
+| Output | Push to `Prasanna85/laya-issue-triage`. Record the commit SHA. |
 | Seed | 42 |
 
 Expected runtime is well under an hour for about 2–3k training rows. The notebook's 4–5 hour figure
 is for about 30k questions.
+
+**Phase 3 adaptation (v1.0.6).** `training/finetune_kaggle.ipynb` adapts the Laya notebook at tag
+`v0.3.23`, commit `d8a2e59781ca135169a36095056132e273cd9938` (`ae3222b3fcdf424254a2c726d72161f671a86d95`
+is the annotated tag object, not a commit). The Apache-2.0 attribution and the list of changes are in its
+first cell.
+
+- **Base pinned.** `convaiinnovations/laya` at `55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851`, downloaded
+  anonymously (`token=False`) with only `rl_agent_config.json`, `model.safetensors`, `tokenizer/*` and
+  `encoder/*`, the set `laya.load` needs.
+- **Sequences at 1024/256.** `training/make_items.py` builds the training items at `max_len` 1024 /
+  `head_max_len` 256, the budget saved in the config and used at inference. Upstream builds them at the
+  root config's 512/192 while `train_ddp.py` saves 1024/256, which would cut the 38.0% of our training
+  items that are longer than 512 tokens; this is fixed here. The frozen question's head is 112 tokens, so
+  `head_max_len` 192 vs 256 does not change our sequences; `max_len` sets the room for the state (399 vs
+  911 tokens). The root weights load with `strict=True` at 256 because the head has no positional
+  parameters.
+- **Pins and items-hash parity.** The notebook's first code cell installs `laya==0.3.23` and
+  `transformers==5.18.0` and asserts laya 0.3.23, transformers 5.18.0, tokenizers 0.23.2,
+  huggingface_hub 1.33.0 and safetensors 0.8.0 (Kaggle: Python 3.12, torch 2.10.0+cu128, 2× T4).
+  `train.jsonl` and `val.jsonl` are checked by SHA-256, size and row count. Before training, the SHA-256
+  of the built items must equal the local build recorded in `results/phase3/items_sha256.json` (one hash
+  per eps, plus one for the SMOKE subset).
+- **Training plan.** 1,196 items → 119 calibration items (upstream rule `min(400, n // 10)`, upstream
+  seed 20260922, unchanged) → 1,076 training items → 538 per GPU → 68 micro-batches and 17 optimizer
+  steps per epoch → **68 optimizer steps** over 4 epochs (effective batch 64).
+- **Deviations from upstream `train_ddp.py`.** Scheduler `T_max` is the true optimizer-step count (68).
+  Upstream's floor division gives 64, so its cosine LR rises slightly over the last 4 steps (negligible).
+  `torch.manual_seed(SEED + rank)` and `torch.cuda.manual_seed(SEED + rank)` are added (upstream seeds
+  only the Python shuffle); GPU kernels stay non-deterministic, so runs are seeded but not bit-for-bit
+  reproducible. `model_name` is `laya-issue-triage` (laya does not read it when loading). Settings come
+  from a run config, and unused imports are removed. Loss, optimizer, calibration split and temperature
+  fitting are unchanged. The calibration seed and all counts are recorded in `run_meta.json`.
+- **Output.** `upload_folder` of `model.safetensors`, `rl_agent_config.json`, `tokenizer/*`, `encoder/*`
+  and `run_meta.json` (versions, constants, hashes, temperatures; no issue text) to the existing private
+  repo `Prasanna85/laya-issue-triage`. The notebook never creates a repo. `SMOKE = True` is the default:
+  50 rows spread over the file, 1 epoch, `GRAD_ACCUM` 1, no push.
 
 ### 9.4 Inference settings
 
@@ -653,7 +690,9 @@ laya-triage/
 │   ├── fetch_data.py             # NLBSE'24 at pinned commit + SHA-256 check (never run in CI)
 │   ├── nlbse_data.py             # NLBSE'24 raw CSV loading, synthetic IDs, content hashes (§8.3)
 │   ├── build_dataset.py          # NLBSE -> data/processed/*.jsonl + manifests
-│   └── finetune_kaggle.ipynb     # adapted Laya notebook
+│   ├── make_items.py             # train.jsonl -> training items (stdlib + transformers + laya only)
+│   ├── build_notebook.py         # generates finetune_kaggle.ipynb (never edit the notebook by hand)
+│   └── finetune_kaggle.ipynb     # adapted Laya notebook (embeds make_items.py byte for byte)
 ├── eval/
 │   ├── baselines.py              # B0, B1, B2
 │   ├── run_eval.py               # M1 on val/test, CPU fp32, writes results/*.json
@@ -665,6 +704,7 @@ laya-triage/
 │   └── DATA_CARD.md
 ├── results/
 │   ├── phase0.md
+│   ├── phase3/                   # items_sha256.json: expected training-item hashes (+ generator)
 │   ├── experiments.md
 │   ├── metrics_val.json / metrics_test.json
 │   └── figures/
@@ -675,6 +715,8 @@ laya-triage/
 │   ├── test_event_loader.py
 │   ├── test_github_client.py     # mocked HTTP
 │   ├── test_eval_metrics.py      # eval/metrics.py on hand-computed fixtures
+│   ├── test_make_items.py        # training/make_items.py; tokenizer tests @pytest.mark.slow
+│   ├── test_notebook_sync.py     # notebook == make_items.py, pins, no create_repo / token literal
 │   └── test_model_smoke.py       # @pytest.mark.slow, real model, 3 fixtures
 └── .github/workflows/
     ├── ci.yml                    # ruff + pytest (no model weights)
@@ -728,7 +770,7 @@ class Decision:
 
 ```yaml
 model:
-  repo: "<hf-user>/laya-issue-triage"
+  repo: "Prasanna85/laya-issue-triage"
   revision: "<commit-sha>"        # pinned; never "main" in production
   max_len: 1024
   backend: torch                  # torch | onnx (v1.2)
@@ -857,7 +899,8 @@ on our data pipeline).
 
 Tasks:
 1. Adapt the Laya Kaggle notebook. Replace its dataset loading with our `train.jsonl` while keeping
-   the row schema, and set the HF destination repo.
+   the row schema, and set the HF destination repo. Training items are built by
+   `training/make_items.py`, which the notebook embeds byte for byte (§9.3).
 2. Train. Push to HF and record the revision SHA in `experiments.md`.
 3. Run M1 on val on CPU fp32. Compute metrics and choose thresholds per §10.4. Commit the config.
 4. Run M1 on test **once**. Produce all §10.3 plots. Fill in the §10.5 table.
@@ -999,6 +1042,8 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.3 | Phase 1 pre-work (owner decisions: synthetic IDs, content-hash leakage checks, 20% val + bootstrap lower-bound thresholds, cross-repo headline metric). §8.3: drop the 4 official-train rows (559, 900, 901, 1114) whose (title, body) is in test, leaving 1,496; `val` = 20% (≈ 300) stratified by repo × label, seed 42, excluding the Phase 0 sample rows (forced into `train`); `train` ≈ 1,196; `test` = all 1,500 official test rows; manifests `<id>\t<content_sha1>` with IDs `nlbse24-<source>-<row:04d>` (source = train or test) and SHA-1 over raw `title + "\n" + body`; `dropped_train.txt` added. §8.5: example ID `nlbse24-train-0123`, IDs are synthetic. §8.1/§8.2: NLBSE'24 has no IDs/URLs and an empty upstream LICENSE (raw data never committed), fetched by `training/fetch_data.py` at upstream commit `2927bc67…` with SHA-256 checks; NLBSE'23/Protocol B dedupe by content hash, not URL; Protocol A allows pretrained models fine-tuned only on the provided train set, Protocol B is non-comparable. §8.7: no ID or content hash in more than one split; train + val + dropped = 1,500; Phase 0 sample rows in train. §6.3/§10.2/§10.5: headline = cross-repo macro-F1 (mean of 5 per-repo macro-F1 on test, as behind SetFit 0.8270); pooled macro-F1 and accuracy also reported; B3 = SetFit 0.8270. §10.4: thresholds from a bootstrap lower bound (2,000 resamples, seed 42, 5th percentile ≥ 0.90, \|S\| ≥ 20), point-estimate threshold recorded for comparison. §11/§13: `training/fetch_data.py`, `training/nlbse_data.py`; Phase 1 tasks add fetch_data.py, `tests/test_build_dataset.py`, 30-row manual review; gate requires tests green. §15: R3 adds CPU-only torch wheel and minimal checkpoint fetch; new R11 (balanced data may not transfer) and R12 (small val makes thresholds noisy). | Prasanna + Claude |
 | 2026-10-02 | 1.0.4 | Phase 1 gate. §8.3: a row whose (title, body) is duplicated within official train is dropped in all copies (on the real data this coincides with the test-overlap rule: rows 559, 900, 901, 1114). §8.6: example row gains `"id": "nlbse24-test-0456"`; `laya-evals` ignores extra keys. §13 Phase 1: run laya-evals as `python -m laya.evals_cli` (the launcher script breaks on paths with spaces). | Prasanna + Claude |
 | 2026-10-02 | 1.0.5 | Phase 2. §11: add `eval/metrics.py` (§10.2 metrics as pure functions, shared by `eval/baselines.py` and `eval/run_eval.py`) and `tests/test_eval_metrics.py`. | Prasanna + Claude |
+| 2026-10-02 | 1.0.6 | Phase 3a (notebook adaptation). §9.3: adapted from the Laya notebook at `v0.3.23` = commit `d8a2e597…` (`ae3222b…` is the tag object); base pinned at `55cf4c4e…` with the minimal file set, anonymous download; items built by `training/make_items.py` at 1024/256 (upstream builds at the root's 512/192 while saving 1024/256); Kaggle version pins and the items-hash parity rule (`results/phase3/items_sha256.json`); 68 optimizer steps; deviations from upstream `train_ddp.py` (true `T_max` 68 vs upstream 64, torch/CUDA seeding with SEED + rank, calibration seed 20260922 kept, `model_name`). §8.5: JSON-string note resolved. §11: `training/make_items.py`, `results/phase3/`, `tests/test_make_items.py`, `tests/test_notebook_sync.py`. §12.3: repo `Prasanna85/laya-issue-triage`. §13 Phase 3 task 1 names `make_items.py`. §17: Q5 and Q7 resolved. | Prasanna + Claude |
+| 2026-10-02 | 1.0.7 | §11: add `training/build_notebook.py`, which generates `training/finetune_kaggle.ipynb`; `tests/test_notebook_sync.py` checks that regenerating gives the committed notebook byte for byte. §7.3 and §9.3: HF repo placeholders replaced with `Prasanna85/laya-issue-triage`. | Prasanna + Claude |
 
 ---
 
@@ -1010,9 +1055,9 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | Q2 | Exact latest `laya` PyPI version and compatible `transformers`/`torch` pins | **Resolved (Phase 0):** macOS arm64: laya 0.3.23, torch 2.14.1, transformers 5.18.0; Linux pins decided in Phase 4 |
 | Q3 | Checkpoint download size and whether it fits comfortably in the Actions cache | **Resolved (Phase 0):** minimal file set 846,201,702 bytes incl. the cached file listing (`trees/<sha>.json`); full snapshot 2.37 GB |
 | Q4 | Actual CPU spec and RAM of the GitHub-hosted runner used (public vs private repo runners differ) | Phase 0 / 4 |
-| Q5 | Whether the notebook's training script needs changes beyond replacing data loading (for example `max_len` from config) | Phase 3 |
+| Q5 | Whether the notebook's training script needs changes beyond replacing data loading (for example `max_len` from config) | **Resolved (Phase 3):** yes. Items are built at 1024/256 instead of the root's 512/192, plus a pinned base and versions, torch seeding, the true scheduler `T_max` and `model_name`; see §9.3 |
 | Q6 | Whether NLBSE'23 data is needed (only if Protocol A results are weak) | After Phase 3 |
-| Q7 | Final project and repo name, and HF model repo name | Phase 0 |
+| Q7 | Final project and repo name, and HF model repo name | **Resolved (Phase 3):** project `laya-triage` (GitHub `Prasanna-KS-85/laya-triage`), HF model repo `Prasanna85/laya-issue-triage` (private) |
 
 ---
 

@@ -27,3 +27,4 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+markers = ["slow: needs the Laya checkpoint in the local HF cache; skipped when it is missing (CI)"]
