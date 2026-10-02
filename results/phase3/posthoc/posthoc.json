@@ -1,0 +1,261 @@
+{
+ "note": "post-hoc exploratory; not part of the pre-declared protocol; changes no criterion or config",
+ "C_sanity": {
+  "confusion_M1": [
+   [
+    388,
+    33,
+    79
+   ],
+   [
+    25,
+    420,
+    55
+   ],
+   [
+    53,
+    52,
+    395
+   ]
+  ],
+  "confusion_B1": [
+   [
+    380,
+    55,
+    65
+   ],
+   [
+    25,
+    420,
+    55
+   ],
+   [
+    64,
+    85,
+    351
+   ]
+  ],
+  "gold_feature": {
+   "n": 500,
+   "same_prediction": 429,
+   "both_feature": 386
+  },
+  "M1_test_tau_lb": {
+   "taus": {
+    "bug": 0.6033,
+    "feature": 1.01,
+    "question": 1.01
+   },
+   "applied": 391,
+   "n": 1500,
+   "correct": {
+    "all": 342,
+    "bug": 342,
+    "feature": 0,
+    "question": 0
+   }
+  },
+  "M1_test_tau_point": {
+   "taus": {
+    "bug": 0.5027,
+    "feature": 0.732,
+    "question": 0.6088
+   },
+   "applied": 1312,
+   "n": 1500,
+   "correct": {
+    "all": 1114,
+    "bug": 374,
+    "feature": 391,
+    "question": 349
+   }
+  }
+ },
+ "A_near_duplicates": {
+  "vectorizer": {
+   "class": "sklearn.feature_extraction.text.TfidfVectorizer",
+   "ngram_range": [
+    1,
+    2
+   ],
+   "min_df": 2,
+   "sublinear_tf": true
+  },
+  "summary": {
+   "val": {
+    "n": 300,
+    "mean": 0.3738896914441022,
+    "median": 0.28391490907795003,
+    "p90": 0.7573653896995972,
+    "share_above_0.8": 0.08333333333333333,
+    "share_above_0.9": 0.05
+   },
+   "test": {
+    "n": 1500,
+    "mean": 0.3839941002065933,
+    "median": 0.32064593782255985,
+    "p90": 0.77985413302363,
+    "share_above_0.8": 0.09533333333333334,
+    "share_above_0.9": 0.05533333333333333
+   }
+  },
+  "tertile_cuts_from_val": [
+   0.20146364888900026,
+   0.43092800179289587
+  ],
+  "accuracy_by_tertile": {
+   "val": {
+    "M1": {
+     "low": {
+      "n": 100,
+      "accuracy": 0.85
+     },
+     "mid": {
+      "n": 100,
+      "accuracy": 0.85
+     },
+     "high": {
+      "n": 100,
+      "accuracy": 0.91
+     }
+    },
+    "B1": {
+     "low": {
+      "n": 100,
+      "accuracy": 0.66
+     },
+     "mid": {
+      "n": 100,
+      "accuracy": 0.79
+     },
+     "high": {
+      "n": 100,
+      "accuracy": 0.83
+     }
+    },
+    "overall": {
+     "M1": 0.87,
+     "B1": 0.76
+    }
+   },
+   "test": {
+    "M1": {
+     "low": {
+      "n": 449,
+      "accuracy": 0.7639198218262806
+     },
+     "mid": {
+      "n": 534,
+      "accuracy": 0.7696629213483146
+     },
+     "high": {
+      "n": 517,
+      "accuracy": 0.8684719535783365
+     }
+    },
+    "B1": {
+     "low": {
+      "n": 449,
+      "accuracy": 0.7171492204899778
+     },
+     "mid": {
+      "n": 534,
+      "accuracy": 0.7490636704119851
+     },
+     "high": {
+      "n": 517,
+      "accuracy": 0.8297872340425532
+     }
+    },
+    "overall": {
+     "M1": 0.802,
+     "B1": 0.7673333333333333
+    }
+   }
+  }
+ },
+ "B_global_cutoff": {
+  "M1": {
+   "val": {
+    "tau": 0.7625,
+    "support": 215,
+    "coverage": 0.7166666666666667,
+    "precision": 0.9302325581395349,
+    "lower_bound": 0.9023255813953488,
+    "n_candidates_with_support": 270
+   },
+   "test": {
+    "applied": 1089,
+    "escalated": 411,
+    "coverage": 0.726,
+    "precision": 0.8797061524334252,
+    "per_label": {
+     "bug": {
+      "applied": 306,
+      "precision": 0.9183006535947712
+     },
+     "feature": {
+      "applied": 440,
+      "precision": 0.8818181818181818
+     },
+     "question": {
+      "applied": 343,
+      "precision": 0.8425655976676385
+     }
+    }
+   },
+   "descriptive_reads_test_curve_optimistic": {
+    "max_coverage_at_precision_0.90": {
+     "threshold": 0.8342,
+     "coverage": 0.6433333333333333,
+     "precision": 0.900518134715026
+    },
+    "max_coverage_at_B1_predeclared_test_precision": {
+     "target": 0.9156050955414012,
+     "point": {
+      "threshold": 0.873,
+      "coverage": 0.5846666666666667,
+      "precision": 0.9156214367160775
+     }
+    }
+   }
+  },
+  "B1": {
+   "val": {
+    "tau": 0.6905411667520618,
+    "support": 155,
+    "coverage": 0.5166666666666667,
+    "precision": 0.9354838709677419,
+    "lower_bound": 0.9032258064516129,
+    "n_candidates_with_support": 281
+   },
+   "test": {
+    "applied": 829,
+    "escalated": 671,
+    "coverage": 0.5526666666666666,
+    "precision": 0.8998793727382388,
+    "per_label": {
+     "bug": {
+      "applied": 275,
+      "precision": 0.92
+     },
+     "feature": {
+      "applied": 320,
+      "precision": 0.875
+     },
+     "question": {
+      "applied": 234,
+      "precision": 0.9102564102564102
+     }
+    }
+   },
+   "descriptive_reads_test_curve_optimistic": {
+    "max_coverage_at_precision_0.90": {
+     "threshold": 0.6927163123087863,
+     "coverage": 0.55,
+     "precision": 0.9006060606060606
+    }
+   }
+  }
+ }
+}

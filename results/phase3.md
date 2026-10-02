@@ -510,3 +510,69 @@ whether met or not. They are, including the criterion 3 miss.
    config and the card keep pinning `76ece1fb…`, which has the same weights and config. If the pin should move
    to the new commit, verify that it differs only in `README.md` first.
 3. **Make the HF repo public** before Phase 4's sandbox test (the Action downloads the model anonymously, NFR-4).
+
+## Post-hoc exploratory analysis (not pre-declared)
+
+Run on 2026-10-02, after the single test run. **This is not part of the pre-declared protocol.** It changes no
+§6.3 criterion, no config value, no spec text and no committed result. Test was used once for M1 already; the
+global-cutoff rule (B) was stated before it was computed and is evaluated on test once, with no alternatives.
+No model runs: predictions come from the committed CSVs. `.venv/bin/python results/phase3/posthoc_analysis.py` →
+`results/phase3/posthoc/posthoc.json` and `report.md` (aggregates only; no ids, no text). Tests:
+`tests/test_posthoc_analysis.py`.
+
+### C. Sanity recomputation (test)
+
+- **Confusion matrices: confirmed, no bug.** M1 `[[388, 33, 79], [25, 420, 55], [53, 52, 395]]`, B1
+  `[[380, 55, 65], [25, 420, 55], [64, 85, 351]]`: `metrics.confusion_counts`, an independent count and
+  `metrics_test.json` agree. The identical feature row is a coincidence of totals. On the 500 gold-feature
+  issues M1 and B1 predict the same label 429 times (both `feature` on 386); each is right on 34 where the
+  other predicts something else.
+- **Gating counts: confirmed.** At the config thresholds: 391 applied of 1,500, 342 correct (all `bug`). At val
+  τ_point: 1,312 applied of 1,500, 1,114 correct (bug 374 / 438, feature 391 / 444, question 349 / 430).
+
+### A. Near-duplicates to train (max TF-IDF cosine similarity)
+
+Vectorizer settings from `results/phase2/b1_config.json` (word 1–2 grams, min_df 2, sublinear tf), fit on
+train.jsonl only. Text is `title + "\n" + body` of the processed state.
+
+| Split | n | mean | median | p90 | share > 0.8 | share > 0.9 |
+|---|---:|---:|---:|---:|---:|---:|
+| val | 300 | 0.3739 | 0.2839 | 0.7574 | 0.0833 | 0.0500 |
+| test | 1,500 | 0.3840 | 0.3206 | 0.7799 | 0.0953 | 0.0553 |
+
+Accuracy by similarity tertile (cut points from the val distribution: 0.2015, 0.4309):
+
+| Split | System | low (n / acc) | mid (n / acc) | high (n / acc) | overall acc |
+|---|---|---|---|---|---:|
+| val | M1 R1b | 100 / 0.8500 | 100 / 0.8500 | 100 / 0.9100 | 0.8700 |
+| val | B1 | 100 / 0.6600 | 100 / 0.7900 | 100 / 0.8300 | 0.7600 |
+| test | M1 R1b | 449 / 0.7639 | 534 / 0.7697 | 517 / 0.8685 | 0.8020 |
+| test | B1 | 449 / 0.7171 | 534 / 0.7491 | 517 / 0.8298 | 0.7673 |
+
+Test is, if anything, slightly closer to train than val (mean 0.384 vs 0.374; share > 0.8: 9.5% vs 8.3%).
+M1's accuracy falls from val to test in every tertile (−8.6, −8.0, −4.2 points). So near-duplicate overlap
+with train does not explain the val 0.869 vs test 0.802 gap. This analysis does not identify the cause.
+Candidates it cannot rule out include sampling noise at n = 300 (100 issues per tertile) and differences that
+lexical similarity does not capture.
+
+### B. One global cutoff (pooled labels; rule pre-stated, fitted on val, evaluated once on test)
+
+Rule: `gating.select_threshold` on all val issues pooled. Candidates are the distinct val `answer_confidence`
+values, |S| ≥ 20, the bound is the 5th percentile of precision over 2,000 resamples (seed 42), and τ_global is
+the smallest candidate with bound ≥ 0.90. Each system uses its own val predictions.
+
+| System | τ_global | val \|S\| | val coverage | val precision | val bound | test applied | test coverage | test precision |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| M1 R1b | 0.7625 | 215 | 0.7167 | 0.9302 | 0.9023 | 1,089 | 0.7260 | **0.8797** (958 / 1,089) |
+| B1 | 0.6905 | 155 | 0.5167 | 0.9355 | 0.9032 | 829 | 0.5527 | **0.8999** (746 / 829) |
+
+Per label on test (applied / precision): M1 bug 306 / 0.9183, feature 440 / 0.8818, question 343 / 0.8426;
+B1 bug 275 / 0.9200, feature 320 / 0.8750, question 234 / 0.9103. Both systems fall below 0.90 on test with
+their val-fitted global cutoff. M1's test precision is 2.0 points below target at 0.7260 coverage. B1's
+precision of 0.89988 also misses 0.90, by about one issue.
+
+**Descriptive only: reads the test curve, so it is optimistic and not a usable threshold.**
+- M1: largest test coverage with precision ≥ 0.90 is 0.6433 (precision 0.9005, τ 0.8342).
+- B1: largest test coverage with precision ≥ 0.90 is 0.5500 (precision 0.9006, τ 0.6927).
+- M1 at B1's pre-declared test precision 0.9156 (view 7): reachable, largest coverage 0.5847 (τ 0.8730).
+  B1 achieved 0.4187 at that precision.
