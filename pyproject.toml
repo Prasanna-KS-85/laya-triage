@@ -19,6 +19,7 @@ dev = [
     "ruff==0.16.10",
 ]
 eval = [
+    "matplotlib==3.11.2",
     "scikit-learn==1.9.1",
 ]
 

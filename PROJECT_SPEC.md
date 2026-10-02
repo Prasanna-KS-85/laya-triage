@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.7 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.8 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -648,6 +648,10 @@ position. It is not part of the v1.0 contract.
 7. Write the thresholds to `config/triage.default.yml` and commit **before** running test. Run test
    once. Report the achieved precision and coverage. Do not re-tune on test.
 
+Candidate thresholds are the distinct val `answer_confidence` values among issues predicted ℓ, and every
+candidate's 2,000 resamples come from a fresh `numpy.random.RandomState(42 + i)`, where i is ℓ's index
+in `LABELS` (`eval/gating.py`).
+
 Lower-bound thresholds are conservative, so coverage will be lower than with point-estimate
 thresholds.
 
@@ -715,6 +719,8 @@ laya-triage/
 │   ├── test_event_loader.py
 │   ├── test_github_client.py     # mocked HTTP
 │   ├── test_eval_metrics.py      # eval/metrics.py on hand-computed fixtures
+│   ├── test_gating.py            # eval/gating.py (§10.4) on hand-computed fixtures
+│   ├── test_plots.py             # eval/plots.py on synthetic arrays (Agg backend)
 │   ├── test_make_items.py        # training/make_items.py; tokenizer tests @pytest.mark.slow
 │   ├── test_notebook_sync.py     # notebook == make_items.py, pins, no create_repo / token literal
 │   └── test_model_smoke.py       # @pytest.mark.slow, real model, 3 fixtures
@@ -1044,6 +1050,7 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.5 | Phase 2. §11: add `eval/metrics.py` (§10.2 metrics as pure functions, shared by `eval/baselines.py` and `eval/run_eval.py`) and `tests/test_eval_metrics.py`. | Prasanna + Claude |
 | 2026-10-02 | 1.0.6 | Phase 3a (notebook adaptation). §9.3: adapted from the Laya notebook at `v0.3.23` = commit `d8a2e597…` (`ae3222b…` is the tag object); base pinned at `55cf4c4e…` with the minimal file set, anonymous download; items built by `training/make_items.py` at 1024/256 (upstream builds at the root's 512/192 while saving 1024/256); Kaggle version pins and the items-hash parity rule (`results/phase3/items_sha256.json`); 68 optimizer steps; deviations from upstream `train_ddp.py` (true `T_max` 68 vs upstream 64, torch/CUDA seeding with SEED + rank, calibration seed 20260922 kept, `model_name`). §8.5: JSON-string note resolved. §11: `training/make_items.py`, `results/phase3/`, `tests/test_make_items.py`, `tests/test_notebook_sync.py`. §12.3: repo `Prasanna85/laya-issue-triage`. §13 Phase 3 task 1 names `make_items.py`. §17: Q5 and Q7 resolved. | Prasanna + Claude |
 | 2026-10-02 | 1.0.7 | §11: add `training/build_notebook.py`, which generates `training/finetune_kaggle.ipynb`; `tests/test_notebook_sync.py` checks that regenerating gives the committed notebook byte for byte. §7.3 and §9.3: HF repo placeholders replaced with `Prasanna85/laya-issue-triage`. | Prasanna + Claude |
+| 2026-10-02 | 1.0.8 | Phase 3c-A (evaluation tooling). §10.4: candidate thresholds are the distinct val `answer_confidence` values among issues predicted ℓ; bootstrap seed `numpy.random.RandomState(42 + index of ℓ in LABELS)`, fresh per candidate. §11: `tests/test_gating.py`, `tests/test_plots.py`. | Prasanna + Claude |
 
 ---
 
