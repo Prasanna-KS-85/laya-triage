@@ -14,6 +14,7 @@ import os
 import time
 import traceback
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 from laya_triage.questions import ISSUE_TYPE_QUESTION, LABELS
@@ -21,6 +22,33 @@ from laya_triage.questions import ISSUE_TYPE_QUESTION, LABELS
 Label = Literal["bug", "feature", "question"]
 QID = next(iter(ISSUE_TYPE_QUESTION))
 BATCH_SIZE = 8
+# The files laya.load reads from a snapshot (its snapshot_download allow_patterns, laya 0.3.23).
+REQUIRED_MODEL_FILES = ("rl_agent_config.json", "model.safetensors", "encoder/config.json", "tokenizer/tokenizer.json",
+                        "tokenizer/tokenizer_config.json")
+
+
+def hf_hub_cache(env):
+    """The Hugging Face hub cache directory, resolved from `env` as huggingface_hub does (HF_HUB_CACHE, then
+    HF_HOME/hub, then $XDG_CACHE_HOME or ~/.cache, + huggingface/hub)."""
+    if env.get("HF_HUB_CACHE"):
+        return Path(env["HF_HUB_CACHE"]).expanduser()
+    home = env.get("HF_HOME") or str(Path(env.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "huggingface")
+    return Path(home).expanduser() / "hub"
+
+
+def model_cached(repo, revision, env) -> bool:
+    """True when the snapshot of repo@revision holds every file laya needs, each a non-empty regular file
+    (symlinks into the blob store resolved), so the model can load with HF_HUB_OFFLINE=1."""
+    snap = hf_hub_cache(env) / f"models--{repo.replace('/', '--')}" / "snapshots" / revision
+    try:
+        return all((snap / f).is_file() and (snap / f).stat().st_size > 0 for f in REQUIRED_MODEL_FILES)
+    except OSError:
+        return False
+
+
+def model_key(repo, revision):
+    """Cache-key part for repo@revision (repo and revision are format-validated by the config)."""
+    return f"{repo.replace('/', '--')}--{revision}"
 
 
 @dataclass(frozen=True)

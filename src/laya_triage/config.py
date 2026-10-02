@@ -19,6 +19,7 @@ MODES = ("dry-run", "apply")
 BACKENDS = ("torch",)  # onnx is v1.2
 NEVER_MAX = 1.01  # thresholds live in (0, 1.01]; 1.01 = never auto-apply
 REVISION_RE = re.compile(r"[0-9a-f]{40}")
+REPO_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")  # matched in full: no newline can pass
 LABEL_KEYS = (*LABELS, "escalate")
 
 # Leaf type tags: "str", "bool", "int", "number", "str_list". Mappings nest.
@@ -142,8 +143,8 @@ def validate(raw):
             v = v[part]
         return v
 
-    if ok("model.repo") and not get("model.repo").strip():
-        problems.append("model.repo: must not be empty")
+    if ok("model.repo") and not REPO_RE.fullmatch(get("model.repo")):
+        problems.append("model.repo: must look like owner/name (letters, digits, '_', '.', '-')")
     if ok("model.revision") and not REVISION_RE.fullmatch(get("model.revision")):
         problems.append("model.revision: must be a 40-character lowercase hex commit SHA")
     if ok("model.max_len") and get("model.max_len") <= 0:

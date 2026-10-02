@@ -1,0 +1,74 @@
+name: CI
+
+# PROJECT_SPEC.md §13 Phase 4 task 3, §16 rule 9: ruff + pytest without model weights. The slow tests need the model
+# in the local Hugging Face cache and are deselected here (they also skip when it is missing).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Install (CPU-only torch, pinned)
+        shell: bash
+        run: |
+          set -euo pipefail
+          CPU_INDEX="https://download.pytorch.org/whl/cpu"
+          python -m pip install -c constraints-linux.txt pip setuptools
+          python -m pip install -c constraints-linux.txt torch --index-url "$CPU_INDEX" \
+            || python -m pip install -c constraints-linux.txt torch --extra-index-url "$CPU_INDEX"
+          python -m pip install -c constraints-linux.txt -e ".[dev,eval]"
+          python -c "import torch; assert torch.version.cuda is None, 'CUDA build of torch installed'"
+      - name: Ruff
+        run: ruff check .
+      - name: Pytest (no weights)
+        env:
+          HF_HUB_OFFLINE: "1"
+        run: pytest -m "not slow"
+
+  lock-linux:
+    # Produces the Linux lock file (changelog v1.0.1): install exactly as action.yml does, then freeze.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Install as the Action does and freeze
+        shell: bash
+        run: |
+          set -euo pipefail
+          CPU_INDEX="https://download.pytorch.org/whl/cpu"
+          python -m venv "$RUNNER_TEMP/venv"
+          PY="$RUNNER_TEMP/venv/bin/python"
+          "$PY" -m pip install -c constraints-linux.txt pip setuptools
+          "$PY" -m pip install -c constraints-linux.txt torch --index-url "$CPU_INDEX" \
+            || "$PY" -m pip install -c constraints-linux.txt torch --extra-index-url "$CPU_INDEX"
+          "$PY" -m pip install -c constraints-linux.txt .
+          "$PY" -c "import laya, laya_triage, torch; assert torch.version.cuda is None"
+          "$PY" -m laya_triage --print-model --default-config config/triage.default.yml
+          {
+            echo "# pip freeze --all on $(lsb_release -ds) $(uname -m), Python $("$PY" -c 'import platform; print(platform.python_version())')"
+            "$PY" -m pip freeze --all --exclude laya_triage
+          } > "$RUNNER_TEMP/requirements-linux.lock"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: requirements-linux-lock
+          path: ${{ runner.temp }}/requirements-linux.lock
+          retention-days: 30

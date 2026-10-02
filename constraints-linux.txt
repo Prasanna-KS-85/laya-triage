@@ -1,0 +1,17 @@
+# Pins for installing laya-triage on a GitHub-hosted runner (Linux X64, Python 3.11; PROJECT_SPEC.md §7.6, §7.7).
+# Versions are those of the evaluated environment (results/phase3.md). torch comes from the CPU-only index
+# https://download.pytorch.org/whl/cpu: "torch==2.14.1" matches the "2.14.1+cpu" wheel (PEP 440 ignores the local
+# label), so the later install of laya-triage keeps it and never pulls the CUDA build from PyPI.
+# To pin every transitive dependency, replace this file with the `pip freeze --all` artifact of the ci.yml
+# lock-linux job (the Linux lock file promised in changelog v1.0.1).
+pip==26.2.1
+setuptools==84.0.0
+torch==2.14.1
+laya==0.3.23
+transformers==5.18.0
+tokenizers==0.23.2
+huggingface_hub==1.33.0
+hf-xet==1.6.0
+safetensors==0.8.0
+numpy==2.4.6
+PyYAML==6.0.3

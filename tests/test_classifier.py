@@ -3,7 +3,15 @@ that carry the cause's type and frames but never its message (PROJECT_SPEC.md §
 import pytest
 import torch
 
-from laya_triage.classifier import Classifier, ClassifierError, TriageResult
+from laya_triage.classifier import (
+    REQUIRED_MODEL_FILES,
+    Classifier,
+    ClassifierError,
+    TriageResult,
+    hf_hub_cache,
+    model_cached,
+    model_key,
+)
 from laya_triage.questions import ISSUE_TYPE_QUESTION, LABELS
 
 REPO, REV = "o/r", "a" * 40
@@ -105,3 +113,63 @@ def test_inconsistent_output_is_an_error(kwargs):
 
 def test_labels_constant():
     assert LABELS == ("bug", "feature", "question")
+
+
+# ---- model cache helpers (used by --print-model) ----
+
+
+def test_hf_hub_cache_resolution(tmp_path):
+    from pathlib import Path
+
+    assert hf_hub_cache({"HF_HUB_CACHE": str(tmp_path / "c")}) == tmp_path / "c"
+    assert hf_hub_cache({"HF_HOME": str(tmp_path / "h")}) == tmp_path / "h" / "hub"
+    assert hf_hub_cache({"XDG_CACHE_HOME": str(tmp_path / "x")}) == tmp_path / "x" / "huggingface" / "hub"
+    assert hf_hub_cache({}) == Path.home() / ".cache" / "huggingface" / "hub"
+
+
+def test_hf_hub_cache_agrees_with_huggingface_hub():
+    import os
+
+    import huggingface_hub.constants as c
+
+    assert str(hf_hub_cache(os.environ)) == os.path.expanduser(c.HF_HUB_CACHE)
+
+
+def fake_snapshot(root, files, empty=()):
+    snap = root / "models--o--r" / "snapshots" / REV
+    blobs = root / "models--o--r" / "blobs"
+    blobs.mkdir(parents=True, exist_ok=True)
+    for i, f in enumerate(files):
+        blob = blobs / f"b{i}"
+        blob.write_bytes(b"" if f in empty else b"x")
+        (snap / f).parent.mkdir(parents=True, exist_ok=True)
+        (snap / f).symlink_to(blob)
+    return snap
+
+
+def test_model_cached(tmp_path):
+    env = {"HF_HUB_CACHE": str(tmp_path)}
+    assert model_cached("o/r", REV, env) is False  # nothing cached
+    fake_snapshot(tmp_path, REQUIRED_MODEL_FILES)
+    assert model_cached("o/r", REV, env) is True
+    assert model_cached("o/r", "b" * 40, env) is False  # another revision
+
+
+@pytest.mark.parametrize("missing", REQUIRED_MODEL_FILES)
+def test_model_not_cached_if_a_required_file_is_missing(tmp_path, missing):
+    fake_snapshot(tmp_path, [f for f in REQUIRED_MODEL_FILES if f != missing])
+    assert model_cached("o/r", REV, {"HF_HUB_CACHE": str(tmp_path)}) is False
+
+
+def test_model_not_cached_if_a_file_is_empty_or_a_dangling_link(tmp_path):
+    snap = fake_snapshot(tmp_path, REQUIRED_MODEL_FILES, empty=("model.safetensors",))
+    env = {"HF_HUB_CACHE": str(tmp_path)}
+    assert model_cached("o/r", REV, env) is False
+    (snap / "model.safetensors").resolve().write_bytes(b"w")
+    assert model_cached("o/r", REV, env) is True
+    (snap / "encoder" / "config.json").resolve().unlink()  # dangling symlink (interrupted download)
+    assert model_cached("o/r", REV, env) is False
+
+
+def test_model_key():
+    assert model_key("Prasanna85/laya-issue-triage", REV) == f"Prasanna85--laya-issue-triage--{REV}"

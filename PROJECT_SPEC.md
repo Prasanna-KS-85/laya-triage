@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.14 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.16 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -229,7 +229,7 @@ analysis is acceptable; a hidden miss is not.
 4. NFR-1 is met, or the measured latency is documented with the ONNX plan (v1.2).
    **Result (test): PENDING (Phase 4).** Local Apple M4 Pro CPU, fp32, model preloaded: p50 178 ms, p95 436 ms
    (test run, 8 threads); p95 690 ms at 2 threads (Stop A, 100 val issues). Not measured on a GitHub runner.
-5. The Action runs end-to-end on a sandbox repo for at least 20 real issues opened by hand.
+5. The Action runs end-to-end on a sandbox repo: 22 authored fixtures created via the gh CLI and 2 further issues opened by hand in the web UI, all as real issues.opened events.
 
 ---
 
@@ -351,6 +351,19 @@ GitHub         Workflow            laya_triage                     HF Hub / cach
 Misconfiguration (an invalid config, a missing permission, a missing token or a non-https API URL) fails
 loudly by design (exit 1); NFR-5 concerns runtime faults, which exit 0.
 
+Action layer (`action.yml`):
+
+| Failure | Behaviour |
+|---|---|
+| Runner is not Linux X64 | Fail loudly (unsupported by design). |
+| `setup-python`, dependency install (pip / CPU torch index) fails or times out | Warning plus a summary line ("no issues were triaged"), exit 0. Torch is retried once with `--extra-index-url` if the CPU index alone fails. |
+| Restored dependency venv fails its check (imports, `torch.version.cuda is None`) | Rebuilt; the rebuilt venv is not saved. |
+| Cache restore fails | Warning only (cold path). |
+| Restored model cache incomplete (`model-cached=false`) | Online load; `HF_HUB_OFFLINE=1` only when the cache hit and `model-cached=true`. |
+| Model download fails or is rate limited (R13) | `ClassifierError`, exit 0; the model cache is saved only after a successful load (`model_loaded=true`). |
+| Triage step times out (`timeout` 900 s, exit 124 / 137) or ends with another unexpected code | Warning plus a summary line, exit 0. |
+| `laya_triage` exits 1 or 2 (invalid config, inputs or permission) | Fail loudly (misconfiguration). |
+
 ### 7.6 Security model
 
 - **Permissions:** the workflow declares `permissions: { issues: write, contents: read }` only.
@@ -366,10 +379,18 @@ loudly by design (exit 1); NFR-5 concerns runtime faults, which exit 0.
 
 ### 7.7 Caching strategy
 
-- Cache the Hugging Face cache directory (`~/.cache/huggingface`) with `actions/cache`.
-- Cache key: `laya-${{ runner.os }}-${model_repo}-${model_revision}`. A model change invalidates the
-  cache automatically.
-- Also cache pip downloads (`setup-python` with `cache: pip`).
+- **Model:** `~/.cache/huggingface` (`HF_HOME` set explicitly), restored and saved with `actions/cache/restore` and
+  `actions/cache/save`. Key: `laya-hf-${{ runner.os }}-<owner>--<name>--<revision>`, where repo and revision come
+  from the merged config through `python -m laya_triage --print-model` (the same loader as the run; `hashFiles`
+  cannot see the action's files or apply the user config). A model change invalidates the cache automatically.
+  Saved only after a successful load; on a hit whose snapshot holds every file laya needs, the run is fully
+  offline (`HF_HUB_OFFLINE=1`).
+- **Dependencies:** a venv at `~/.cache/laya-triage/venv` with the pinned dependencies (CPU-only torch), keyed by
+  `runner.os`, `runner.arch`, the exact Python version reported by `setup-python`, and a hash of
+  `constraints-linux.txt`. `setup-python`'s `cache: pip` is not used: it needs a dependency file in the consumer's
+  workspace. Every restore is checked (imports, CPU-only torch); a failed check rebuilds without saving. The
+  action's own code is reinstalled on every run (`--no-deps --no-build-isolation`, offline), so the cached venv
+  never runs stale action code.
 
 ---
 
@@ -719,7 +740,8 @@ laya-triage/
 ├── docs/
 │   └── MODEL_CARD.md             # HF model card (README of the model repo), generated; the owner uploads it
 ├── pyproject.toml                # package metadata + pinned deps
-├── action.yml                    # composite GitHub Action definition
+├── constraints-linux.txt         # runner pins (CPU-only torch); replaced by the lock-linux freeze
+├── action.yml                    # composite GitHub Action definition (Linux X64)
 ├── config/
 │   └── triage.default.yml        # default labels, thresholds (from §10.4), mode
 ├── src/laya_triage/
@@ -751,6 +773,7 @@ laya-triage/
 │   └── DATA_CARD.md
 ├── results/
 │   ├── phase0.md
+│   ├── phase4.md                 # Action, CI, sandbox results; FR-5 coverage notes
 │   ├── phase3/                   # items_sha256.json: expected training-item hashes (+ generator)
 │   ├── phase3/make_model_card.py # builds docs/MODEL_CARD.md from metrics_test.json, metrics_val.json, config
 │   ├── phase3/test_report.py     # single test-run report: metrics_test.json, report tables, §10.3 figures
@@ -775,11 +798,15 @@ laya-triage/
 │   ├── test_model_card.py        # docs/MODEL_CARD.md builds from the metrics files and is up to date
 │   ├── test_make_items.py        # training/make_items.py; tokenizer tests @pytest.mark.slow
 │   ├── test_notebook_sync.py     # notebook == make_items.py, pins, no create_repo / token literal
+│   ├── test_workflows.py         # action.yml / workflows: no issue content in shells, SHA pins, allow-listed expressions
+│   ├── test_sandbox.py           # sandbox fixtures, expected_local.json, compare.py
 │   ├── test_model_smoke.py       # @pytest.mark.slow, real model, 3 fixtures
 │   └── test_parity_val.py        # @pytest.mark.slow, production path vs Phase 3 val predictions (30 issues)
 └── .github/workflows/
-    ├── ci.yml                    # ruff + pytest (no model weights)
-    └── triage.yml                # dogfood: runs the action on this repo's issues
+    ├── ci.yml                    # ruff + pytest -m "not slow" (no weights); lock-linux freeze job
+    └── triage.yml                # dogfood: deferred until this repository is public
+sandbox/                          # Phase 4 sandbox kit: authored fixtures (issues.json), expected_local.json,
+                                  # make_expected.py, compare.py, latency_probe.py, workflow.example.yml, README.md
 ```
 
 ---
@@ -863,10 +890,15 @@ preprocess:
 
 | Input | Required | Default | Meaning |
 |---|---|---|---|
-| `github-token` | yes | `${{ github.token }}` | Token for label/comment API calls |
-| `config-path` | no | `.github/laya-triage.yml` | Path to the config file |
-| `mode` | no | (from config) | Overrides `behaviour.mode` |
-| `backfill-count` | no | `0` | If > 0, classify the N most recent open issues (dispatch mode) |
+| `github-token` | no | `${{ github.token }}` | Token for label/comment API calls (needs `issues: write`) |
+| `config-path` | no | `.github/laya-triage.yml` | Path to the config file, relative to the workspace |
+| `mode` | no | empty (from config) | `dry-run` or `apply`; overrides `behaviour.mode`; backfill defaults to `dry-run` |
+| `backfill-count` | no | `0` | If > 0 on `workflow_dispatch`, classify the N most recent open issues; must be a non-negative integer (else exit 2) |
+
+Linux X64 runners only. Inputs reach the scripts only through `env:`; no `${{ }}` expression appears inside a
+`run:` script (enforced by `tests/test_workflows.py`). The triage log is uploaded as the artifact
+`laya-triage-log-<run_id>-<run_attempt>` (`if: always()`). The consumer workflow needs `issues: write` and
+`contents: read`, and should set a job `timeout-minutes` (20).
 
 ### 12.5 Example consumer workflow
 
@@ -878,6 +910,7 @@ on:
   workflow_dispatch:
     inputs:
       backfill-count: { description: "Open issues to classify", default: "20" }
+      mode: { description: "dry-run or apply (empty = dry-run for backfill)", default: "" }
 
 permissions:
   issues: write
@@ -886,13 +919,20 @@ permissions:
 jobs:
   triage:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4            # needed only to read the config file
-      - uses: <your-gh-user>/laya-triage@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (reads the config file)
+        with:
+          persist-credentials: false
+      - uses: Prasanna-KS-85/laya-triage@<40-hex commit SHA> # v1.0.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           backfill-count: ${{ github.event.inputs.backfill-count || '0' }}
+          mode: ${{ github.event.inputs.mode }}
 ```
+
+Pin every action by full commit SHA with the tag as a comment. The sandbox version of this workflow (with runner
+diagnostics and the NFR-1 probe) is `sandbox/workflow.example.yml`.
 
 ### 12.6 Escalation comment templates (fixed text)
 
@@ -992,10 +1032,17 @@ Tasks:
 1. Implement `config`, `event_loader`, `classifier`, `policy`, `github_client`, and `reporter`
    per §12.
 2. Unit tests: policy (all branches), config validation, skip rules, mocked GitHub client.
-3. Write `action.yml` and `ci.yml` (ruff + pytest without weights).
-4. Create a sandbox repo. Run in **dry-run**, then **apply**, on at least 20 hand-written issues
-   covering every class plus ambiguous cases.
-5. Measure cold and warm Action wall time (NFR-2, NFR-3).
+3. Write `action.yml`, `constraints-linux.txt` and `ci.yml` (ruff + `pytest -m "not slow"` without weights), plus
+   `tests/test_workflows.py` (§7.6). The `lock-linux` CI job's `pip freeze --all` replaces `constraints-linux.txt`
+   as the Linux lock file.
+4. Create a private sandbox repo and follow `sandbox/README.md`: 22 authored test fixtures created via the gh CLI
+   (`sandbox/issues.json`, covering every class, template mismatches, ambiguous, empty, long-log, markdown,
+   non-English, prompt-injection-like and emoji cases, and two skip cases). Run in **dry-run**, then **apply**
+   (backfill, an idempotency re-run, and two `issues` events), and compare the runner logs with
+   `sandbox/expected_local.json` (same label, |Δp| ≤ 1e-3, same decision; near-threshold differences reported as
+   borderline). Bot-author and non-`opened` skips are covered by unit tests only (`results/phase4.md`).
+5. Measure cold and warm Action wall time (NFR-2, NFR-3), the runner CPU and RAM (Q4), and the per-issue p50 / p95
+   with `sandbox/latency_probe.py` (NFR-1).
 6. Assert `max_len` from the checkpoint config equals 1024 in `tests/test_model_smoke.py` (§9.4).
 7. Parity test (`tests/test_parity_val.py`, slow): for 30 val issues, the raw title/body from
    `data/raw/issues_train.csv` run through the production path (event dict → `preprocess` → `Classifier`) must
@@ -1082,6 +1129,7 @@ the Action (optionally to the Marketplace), finalise the HF model card, and writ
 | R10 | NLBSE license restricts redistribution | Low | Medium | Do not commit the raw data. Commit only manifests and the build script. Verify in Phase 1. |
 | R11 | Balanced data (100 per class per repo, random not temporal split) differs from real repos, so calibration and thresholds may not transfer | TBD | TBD | The sandbox run and a README limitation. |
 | R12 | Small val set makes thresholds noisy | TBD | TBD | The 20% split, the bootstrap lower bound, and \|S\| ≥ 20 (§10.4). |
+| R13 | Anonymous Hugging Face downloads are rate limited (runner IP ranges are shared) on cold runs: the first run, and after GitHub evicts a cache unused for 7 days | Medium | Low | Warm runs are fully offline (`HF_HUB_OFFLINE=1` on a verified cache hit); the model cache is saved only after a complete load; a failed download fails soft (exit 0, summary says to re-run). An optional `hf-token` input is v1.1. |
 
 ---
 
@@ -1131,6 +1179,8 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.12 | Phase 3 gate. §10.5 filled with the test numbers (B0, B1, B2 both settings, published B3 rows with the derived-values footnote, M1); its coverage column is coverage at the val thresholds with the test precision. §6.3: criterion 3 text states the val and test outcome per label; criteria 1–4 annotated with results (MET / MET / NOT MET / PENDING, Phase 4). §11: `docs/MODEL_CARD.md` and `results/phase3/make_model_card.py`. | Prasanna + Claude |
 | 2026-10-02 | 1.0.13 | §11: add `results/phase3/test_report.py`, `tests/test_test_report.py` and `tests/test_model_card.py` to the tree. | Prasanna + Claude |
 | 2026-10-02 | 1.0.14 | Phase 4a (owner decisions D1–D6 and rulings). FR-5: skip pull requests, `issues` events whose action is not `opened` (only when an action is present), and issues already carrying the escalation label; case-insensitive comparisons. §7.5: retries are 3 retries (2 s, 4 s, 8 s), also for 429 and network errors; errors are recorded as exception type and frames, never the message; labels are checked before adding; misconfiguration exits 1 by design, NFR-5 concerns runtime faults. §12.2: `classify_batch` uses `predict_batch`, verified equal to `predict` (max \|Δp\| 0.0 on 33 issues). §12.3: `comment_on_escalate` defaults to false. §12.6: two templates, (b) for τ > 1.0. §11: new test files. Phase 4 task 7: parity test. | Prasanna + Claude |
+| 2026-10-02 | 1.0.15 | Phase 4b (Action, CI, sandbox kit; owner rulings on the Stop A design). §7.5: action-layer fail-soft table. §7.7: model cache keyed from the merged config via `--print-model`, saved only after a successful load, offline on a verified hit; dependency venv cache keyed by the exact Python version and the pins hash, checked on restore (replaces `cache: pip`). §11: `constraints-linux.txt`, `sandbox/`, `results/phase4.md`, `tests/test_workflows.py`, `tests/test_sandbox.py`; dogfood `triage.yml` deferred. §12.4: inputs (token not required, mode default empty, backfill-count validated), Linux X64, env-only inputs, artifact. §12.5: SHA-pinned example with mode input and timeout. Phase 4 tasks 3-5: lock file, workflow test, sandbox runbook with authored fixtures created via the gh CLI, NFR-1 probe. §15: R13. | Prasanna + Claude |
+| 2026-10-02 | 1.0.16 | §6.3 criterion 5: the sandbox run is 22 authored fixtures created via the gh CLI plus 2 issues opened by hand in the web UI, all as real `issues.opened` events. | Prasanna + Claude |
 
 ---
 

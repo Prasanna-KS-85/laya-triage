@@ -1,0 +1,207 @@
+name: Laya Triage
+description: Label new GitHub issues as bug, feature or question with a fine-tuned Laya model, gated on calibrated confidence.
+author: Prasanna-KS-85
+
+# PROJECT_SPEC.md §7.4-§7.7, §12.4. Linux X64 runners only.
+# Security (§7.6): issue text is read only from $GITHUB_EVENT_PATH inside Python. No `${{ }}` expression appears
+# inside any `run:` script; inputs reach scripts only through `env:` (enforced by tests/test_workflows.py).
+# Fail-soft (§7.5, NFR-5): install, cache and model-download problems, timeouts and crashes end with a warning and
+# exit 0; misconfiguration (unsupported runner, invalid config or inputs, missing permission) fails loudly.
+
+inputs:
+  github-token:
+    description: "Token for the label and comment API calls (needs `issues: write`)."
+    required: false
+    default: ${{ github.token }}
+  config-path:
+    description: Path of the config file, relative to the workspace.
+    required: false
+    default: .github/laya-triage.yml
+  mode:
+    description: dry-run or apply. Empty uses behaviour.mode from the config (backfill defaults to dry-run).
+    required: false
+    default: ""
+  backfill-count:
+    description: If > 0 on a workflow_dispatch event, classify the N most recent open issues.
+    required: false
+    default: "0"
+
+runs:
+  using: composite
+  steps:
+    - name: Check runner
+      if: runner.os != 'Linux' || runner.arch != 'X64'
+      shell: bash
+      run: |
+        echo "::error::laya-triage supports Linux X64 runners only (for example ubuntu-latest)."
+        exit 1
+
+    - name: Set up Python
+      id: py
+      continue-on-error: true
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: "3.11"
+        update-environment: false
+
+    - name: Hash dependency pins
+      id: pins
+      shell: bash
+      run: |
+        echo "sha=$(sha256sum "$GITHUB_ACTION_PATH/constraints-linux.txt" | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+    - name: Restore dependency cache
+      id: venv
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/laya-triage/venv
+        key: laya-venv-${{ runner.os }}-${{ runner.arch }}-py${{ steps.py.outputs.python-version }}-${{ steps.pins.outputs.sha }}
+
+    - name: Install dependencies (CPU-only torch)
+      id: install
+      shell: bash
+      env:
+        PYTHON: ${{ steps.py.outputs.python-path }}
+        VENV_CACHE_HIT: ${{ steps.venv.outputs.cache-hit }}
+      run: |
+        set -uo pipefail
+        VENV="$HOME/.cache/laya-triage/venv"
+        PINS="$GITHUB_ACTION_PATH/constraints-linux.txt"
+        CPU_INDEX="https://download.pytorch.org/whl/cpu"
+        PIP=(timeout 900 "$VENV/bin/python" -m pip install --quiet --disable-pip-version-check -c "$PINS")
+        sane() { "$VENV/bin/python" -c "import laya, laya_triage, torch; assert torch.version.cuda is None" >/dev/null 2>&1; }
+        build() {
+          rm -rf "$VENV"
+          [ -n "$PYTHON" ] && "$PYTHON" -m venv "$VENV" || return 1
+          "${PIP[@]}" pip setuptools || return 1
+          "${PIP[@]}" torch --index-url "$CPU_INDEX" || "${PIP[@]}" torch --extra-index-url "$CPU_INDEX" || return 1
+          "${PIP[@]}" "$GITHUB_ACTION_PATH" || return 1
+        }
+        save=false
+        if [ "$VENV_CACHE_HIT" = "true" ] && sane; then
+          echo "Dependency cache restored and checked."
+        else
+          if [ "$VENV_CACHE_HIT" = "true" ]; then
+            echo "::warning::The restored dependency cache failed its check; rebuilding it (it will not be saved)."
+          else
+            save=true
+          fi
+          if ! build; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+        fi
+        # The cached venv holds the dependencies; the action's own code is reinstalled on every run (offline).
+        if "${PIP[@]}" --no-deps --no-build-isolation "$GITHUB_ACTION_PATH" && sane; then
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+          echo "save=$save" >> "$GITHUB_OUTPUT"
+          echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"
+        else
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Save dependency cache
+      if: steps.install.outputs.ok == 'true' && steps.install.outputs.save == 'true'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/laya-triage/venv
+        key: laya-venv-${{ runner.os }}-${{ runner.arch }}-py${{ steps.py.outputs.python-version }}-${{ steps.pins.outputs.sha }}
+
+    - name: Report install failure
+      if: steps.install.outputs.ok != 'true'
+      shell: bash
+      run: |
+        echo "::warning::laya-triage: dependencies could not be installed; no issues were triaged."
+        printf '## Laya Triage\n\n> Dependencies could not be installed; no issues were triaged (exit 0, fail-soft).\n' >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Resolve model
+      id: model
+      if: steps.install.outputs.ok == 'true'
+      shell: bash
+      env:
+        PY: ${{ steps.install.outputs.python }}
+        INPUT_CONFIG_PATH: ${{ inputs.config-path }}
+      run: |
+        set -euo pipefail
+        export HF_HOME="$HOME/.cache/huggingface"
+        "$PY" -m laya_triage --print-model --config-path "$INPUT_CONFIG_PATH" \
+          --default-config "$GITHUB_ACTION_PATH/config/triage.default.yml" >> "$GITHUB_OUTPUT"
+
+    - name: Restore model cache
+      id: hf
+      if: steps.install.outputs.ok == 'true'
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/huggingface
+        key: laya-hf-${{ runner.os }}-${{ steps.model.outputs.model-key }}
+
+    - name: Check restored model
+      id: cached
+      if: steps.install.outputs.ok == 'true'
+      shell: bash
+      env:
+        PY: ${{ steps.install.outputs.python }}
+        INPUT_CONFIG_PATH: ${{ inputs.config-path }}
+      run: |
+        set -euo pipefail
+        export HF_HOME="$HOME/.cache/huggingface"
+        "$PY" -m laya_triage --print-model --config-path "$INPUT_CONFIG_PATH" \
+          --default-config "$GITHUB_ACTION_PATH/config/triage.default.yml" | grep '^model-cached=' >> "$GITHUB_OUTPUT"
+
+    - name: Triage
+      id: run
+      if: steps.install.outputs.ok == 'true'
+      shell: bash
+      env:
+        PY: ${{ steps.install.outputs.python }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_CONFIG_PATH: ${{ inputs.config-path }}
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_BACKFILL_COUNT: ${{ inputs.backfill-count }}
+        HF_CACHE_HIT: ${{ steps.hf.outputs.cache-hit }}
+        MODEL_CACHED: ${{ steps.cached.outputs.model-cached }}
+      run: |
+        set -uo pipefail
+        export HF_HOME="$HOME/.cache/huggingface" HF_HUB_DISABLE_TELEMETRY=1 HF_HUB_DISABLE_PROGRESS_BARS=1
+        if [ "$HF_CACHE_HIT" = "true" ] && [ "$MODEL_CACHED" = "true" ]; then
+          export HF_HUB_OFFLINE=1  # warm run: no Hugging Face request at all
+        fi
+        mkdir -p "$RUNNER_TEMP/laya-triage"
+        rc=0
+        timeout --kill-after=30 900 "$PY" -m laya_triage \
+          --config-path "$INPUT_CONFIG_PATH" \
+          --default-config "$GITHUB_ACTION_PATH/config/triage.default.yml" \
+          --mode "$INPUT_MODE" \
+          --backfill-count "$INPUT_BACKFILL_COUNT" \
+          --log-path "$RUNNER_TEMP/laya-triage/log.jsonl" || rc=$?
+        case "$rc" in
+          0) ;;
+          1|2) echo "::error::laya-triage: invalid configuration, input or permission (exit $rc); see the messages above."
+               exit "$rc" ;;
+          124|137) echo "::warning::laya-triage timed out or was stopped (exit $rc); fail-soft, exit 0."
+                   printf '## Laya Triage\n\n> The run timed out or was stopped (exit %s); fail-soft.\n' "$rc" >> "$GITHUB_STEP_SUMMARY" ;;
+          *) echo "::warning::laya-triage ended unexpectedly (exit $rc); fail-soft, exit 0."
+             printf '## Laya Triage\n\n> The run ended unexpectedly (exit %s); fail-soft.\n' "$rc" >> "$GITHUB_STEP_SUMMARY" ;;
+        esac
+        exit 0
+
+    - name: Save model cache
+      if: always() && steps.hf.outputs.cache-hit != 'true' && steps.run.outputs.model_loaded == 'true'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/huggingface
+        key: laya-hf-${{ runner.os }}-${{ steps.model.outputs.model-key }}
+
+    - name: Upload triage log
+      if: always()
+      continue-on-error: true
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: laya-triage-log-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/laya-triage/log.jsonl
+        if-no-files-found: ignore
+        retention-days: 30

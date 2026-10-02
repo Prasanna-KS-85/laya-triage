@@ -167,3 +167,15 @@ def test_shape_and_value_problems_are_reported_together(raw):
     assert sorted(p) == sorted(["behaviour.colour: unknown key", "model.max_len: must be an integer, got str",
                                 "gating.thresholds.feature: must be in (0, 1.01]",
                                 "behaviour.mode: must be one of ['dry-run', 'apply']"])
+
+
+@pytest.mark.parametrize("repo,ok", [("Prasanna85/laya-issue-triage", True), ("a_b.c-d/E.f_g-1", True),
+                                     ("noslash", False), ("a/b/c", False), ("", False), ("owner/na me", False),
+                                     ("owner/name\n", False), ("owner/name\nmodel-cached=true", False),
+                                     ("owner/$(x)", False), ("/name", False)])
+def test_model_repo_format(raw, repo, ok):
+    raw["model"]["repo"] = repo
+    if ok:
+        assert validate(raw).model.repo == repo
+    else:
+        assert problems_of(raw) == ["model.repo: must look like owner/name (letters, digits, '_', '.', '-')"]

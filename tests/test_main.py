@@ -278,3 +278,64 @@ def test_explicit_relative_default_config_resolves_against_workspace(tmp_path, m
     (tmp_path / "other").mkdir()
     r2 = Run(tmp_path / "other", monkeypatch)
     assert r2(["--default-config", "cfg/missing.yml"], classifier=FakeClassifier({1: BUG})) == 1
+
+
+# ---- --print-model and the model_loaded step output (action.yml) ----
+
+def fake_cache(root, repo="Prasanna85/laya-issue-triage", revision=REV):
+    from laya_triage.classifier import REQUIRED_MODEL_FILES
+
+    snap = root / f"models--{repo.replace('/', '--')}" / "snapshots" / revision
+    for f in REQUIRED_MODEL_FILES:
+        (snap / f).parent.mkdir(parents=True, exist_ok=True)
+        (snap / f).write_bytes(b"x")
+
+
+@pytest.mark.parametrize("cached", [False, True])
+def test_print_model(run, tmp_path, capsys, cached):
+    r = run(env={"HF_HUB_CACHE": str(tmp_path / "hf")})
+    if cached:
+        fake_cache(tmp_path / "hf")
+    assert r(["--print-model"], classifier=FakeClassifier({})) == 0
+    out = capsys.readouterr().out
+    assert out == (f"model-key=Prasanna85--laya-issue-triage--{REV}\nmodel-cached={str(cached).lower()}\n")
+    assert r.classifier_builds == 0 and r.clients == [] and r.records == []
+
+
+def test_print_model_uses_the_merged_user_config(run, tmp_path, capsys):
+    other = "f" * 40
+    r = run(user_config=f'model:\n  repo: "someone/other-model"\n  revision: "{other}"\n',
+            env={"HF_HUB_CACHE": str(tmp_path / "hf")})
+    fake_cache(tmp_path / "hf", "someone/other-model", other)
+    assert r(["--print-model"]) == 0
+    assert capsys.readouterr().out == f"model-key=someone--other-model--{other}\nmodel-cached=true\n"
+
+
+def test_print_model_with_invalid_config_exits_1(run, capsys):
+    r = run(user_config='model:\n  repo: "bad repo"\n')
+    assert r(["--print-model"]) == 1
+    captured = capsys.readouterr()
+    assert "model-key" not in captured.out and "model.repo" in captured.err
+
+
+@pytest.mark.parametrize("load_error,expected", [(None, "true"), (ClassifierError("model load failed"), "false")])
+def test_model_loaded_output(run, tmp_path, load_error, expected):
+    out = tmp_path / "github_output"
+    r = run(env={"GITHUB_OUTPUT": str(out)})
+    assert r(classifier=FakeClassifier({1: BUG}), load_error=load_error) == 0
+    assert out.read_text() == f"model_loaded={expected}\n"
+
+
+def test_model_loaded_false_when_nothing_needed_the_model(run, tmp_path):
+    out = tmp_path / "github_output"
+    r = run(payload={"action": "opened", "issue": issue(1, labels=("type: bug",))}, env={"GITHUB_OUTPUT": str(out)})
+    assert r(classifier=FakeClassifier({})) == 0
+    assert out.read_text() == "model_loaded=false\n" and r.classifier_builds == 0
+
+
+def test_non_integer_backfill_count_fails_loudly(run):
+    r = run(event="workflow_dispatch")
+    for bad in ("abc", "-1", "1.5"):
+        with pytest.raises(SystemExit) as e:
+            r(["--backfill-count", bad])
+        assert e.value.code == 2

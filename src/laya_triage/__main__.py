@@ -2,7 +2,11 @@
 
 Arguments: --config-path (default .github/laya-triage.yml), --default-config (default: config/triage.default.yml
 next to the package source), --mode (dry-run | apply; overrides behaviour.mode), --backfill-count (> 0 with a
-workflow_dispatch event: the N newest open issues), --log-path (JSONL log, default laya-triage.jsonl).
+workflow_dispatch event: the N newest open issues), --log-path (JSONL log, default laya-triage.jsonl),
+--print-model (print `model-key=<owner>--<name>--<revision>` and `model-cached=true|false` for the merged config,
+in $GITHUB_OUTPUT format, and exit; used by action.yml for the model cache key and offline mode).
+When $GITHUB_OUTPUT is set, a run appends `model_loaded=true|false` (the model loaded in this run; action.yml saves
+the model cache only then).
 Environment: GITHUB_EVENT_NAME, GITHUB_EVENT_PATH, GITHUB_REPOSITORY, GITHUB_STEP_SUMMARY, GITHUB_TOKEN,
 GITHUB_API_URL (https only; default https://api.github.com), GITHUB_WORKSPACE.
 
@@ -56,6 +60,7 @@ def parse_args(argv=None):
     ap.add_argument("--mode", type=_mode, default=None)
     ap.add_argument("--backfill-count", type=_count, default=0)
     ap.add_argument("--log-path", default="laya-triage.jsonl")
+    ap.add_argument("--print-model", action="store_true", help="print model-key / model-cached and exit")
     return ap.parse_args(argv)
 
 
@@ -68,6 +73,14 @@ def default_classifier(cfg):
     from laya_triage.classifier import Classifier
 
     return Classifier(cfg.model.repo, cfg.model.revision, cfg.model.max_len)
+
+
+def set_output(env, name, value):
+    """Append name=value to $GITHUB_OUTPUT when it is set (values here are fixed tokens, never user text)."""
+    path = env.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"{name}={value}\n")
 
 
 def _fail(reporter, message):
@@ -87,6 +100,12 @@ def main(argv=None, env=None, classifier_factory=None, client_factory=None) -> i
         cfg = load_config(default_path, resolve(args.config_path, env))
     except ConfigError as e:
         return _fail(reporter, str(e))
+    if args.print_model:
+        from laya_triage.classifier import model_cached, model_key
+
+        print(f"model-key={model_key(cfg.model.repo, cfg.model.revision)}")
+        print(f"model-cached={str(model_cached(cfg.model.repo, cfg.model.revision, env)).lower()}")
+        return 0
 
     event = env.get("GITHUB_EVENT_NAME") or ""
     backfill = event == "workflow_dispatch" and args.backfill_count > 0
@@ -140,6 +159,7 @@ def _run(cfg, args, env, event, backfill, mode, client, classifier_factory, repo
             classifier = classifier_factory(cfg)
         except Exception as e:  # noqa: BLE001 - soft failure (§7.5)
             load_error = e
+    set_output(env, "model_loaded", str(classifier is not None).lower())
     states = {i: preprocess(issue.title, issue.body, cfg.preprocess) for i, issue in todo}
     if classifier is not None and backfill and len(todo) > 1:
         try:  # §9.4: predict_batch in backfill mode; per-issue fallback isolates a failing issue
