@@ -79,6 +79,8 @@ Runbook: `sandbox/README.md`. Every number below is from the runs listed; nothin
 | 37030556119 | dispatch, backfill 30, apply (re-run) | | 45s | idempotency |
 | 37031205724 | issue #24 (web UI) | | | apply mode, `comment_on_escalate: true`: apply `type: bug` at 0.7836, no comment |
 | 37031265068 | issue #25 (web UI) | | | escalate, prediction `question` 0.9597, comment template (b) |
+| 37058789375 | dispatch, `warm-cache=true` | both cold (all caches deleted first) | 1m15s | action `88ad0bf`; both caches not found, then both saved (HF 739.96 MiB, venv 256.21 MiB); no issue processed |
+| 37059668421 | issue #26 (web UI) | both restored | 56s | action `88ad0bf` (sandbox `2ae7611`); created 20:17:57Z, started 20:18:00Z, completed 20:18:56Z; success; no cache-save attempt in the inspected log; #26 labelled `triage: needs-human` |
 
 The comment on #25 (fixed template (b), §12.6; no issue content): "🤖 Laya Triage suggests `question` (96%), but
 automatic labelling is disabled for this issue type in this repository's configuration, so it's been marked for a
@@ -134,7 +136,7 @@ run green); dispatch runs save them. A repository whose workflow only runs on is
 GitHub evicts the caches (unused for 7 days). Mitigation: the `warm-cache` input (`python -m laya_triage --warm`) on
 a twice-weekly `schedule` (`17 3 * * 1,4`: margin against the 7-day eviction and late scheduled starts) and on
 demand via `workflow_dispatch` (PROJECT_SPEC.md §7.7, §12.4, §12.5, R14). Unit-tested
-with a fake classifier; sandbox verification is PENDING (gate checklist).
+with a fake classifier and verified in the sandbox (runs 37058789375 and 37059668421, below).
 
 **Covered by unit tests only** (cannot be produced on the sandbox with the fixtures and config used):
 
@@ -183,6 +185,16 @@ Gate: every FR-1 to FR-8 is demonstrated on the sandbox repo, and NFR-5/6 are re
   - `sandbox/create_issue.py` calls gh with an argument list (body on stdin).
 - [x] Timings: NFR-2 44 s (met), NFR-3 1m26s (met), NFR-1 p95 3.5 s (not met, documented with the v1.2 ONNX plan);
   Q4 recorded.
-- [ ] PENDING: warm-cache verified in the sandbox (owner runs it after this commit: a `warm-cache=true` dispatch on
-  cold caches saves both caches and makes no issue changes; then a scheduled run).
-- [ ] PENDING: CI green on the commit to be tagged, then tag `v1.0.0-rc1`.
+- [x] warm-cache verified in the sandbox (sandbox commit `2ae76113b88002b4b4113dd50c196ae59aa652b0`, pinned to
+  action commit `88ad0bf3eda4944b5cb243b3da599cc66f404652`):
+  - run 37058789375 (workflow_dispatch, `warm-cache=true`, all caches deleted first): both caches not found, then
+    both saved (HF 739.96 MiB, venv 256.21 MiB); no issue processed; 1m15s;
+  - issue-triggered run 37059668421 (#26, opened by hand; head SHA `2ae7611`, success, 56 s): restored
+    `laya-venv-Linux-X64-py3.11.16-0c25539d0c47fb71` and
+    `laya-hf-Linux-Prasanna85--laya-issue-triage--76ece1fb0eb8b32bd5d8c509293c1692a2534805`; the inspected log
+    excerpt showed no cache-save attempt or failure; #26 received `triage: needs-human`;
+  - not yet observed: a run started by the `schedule` trigger.
+- [x] CI green: run 37058459160 passed on commit `88ad0bf3eda4944b5cb243b3da599cc66f404652`.
+- [x] Tag: annotated tag `v1.0.0-rc1` on commit `88ad0bf3eda4944b5cb243b3da599cc66f404652`, pushed.
+
+**Phase 4 gate: passed.**

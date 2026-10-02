@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.19 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.20 draft (source of truth) · **Last updated:** 2026-10-03 · **Owner:** Prasanna · Phase 4 gate passed; v1.0.0-rc1
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -796,6 +796,8 @@ laya-triage/
 │   └── figures/
 ├── tests/
 │   ├── test_preprocess.py
+│   ├── test_fetch_data.py        # training/fetch_data.py: download, SHA-256 verify, pinned constants (no network)
+│   ├── test_build_dataset.py     # training/build_dataset.py: splits, dedupe, IDs, manifests, row formats
 │   ├── test_policy.py
 │   ├── conftest.py               # offline_classifier fixture for the slow tests (local HF cache, no network)
 │   ├── test_config.py
@@ -806,13 +808,16 @@ laya-triage/
 │   ├── test_main.py              # python -m laya_triage with fake classifier and client (modes, skips, exits)
 │   ├── test_no_shell_execution.py # AST scan of src/ for subprocess / os.system / eval / exec
 │   ├── test_eval_metrics.py      # eval/metrics.py on hand-computed fixtures
+│   ├── test_run_eval.py          # eval/run_eval.py guards and options (no model, no data files)
 │   ├── test_gating.py            # eval/gating.py (§10.4) on hand-computed fixtures
 │   ├── test_plots.py             # eval/plots.py on synthetic arrays (Agg backend)
 │   ├── test_test_report.py       # results/phase3/test_report.py helpers on synthetic inputs
+│   ├── test_posthoc_analysis.py  # results/phase3/posthoc_analysis.py helpers on synthetic inputs
 │   ├── test_model_card.py        # docs/MODEL_CARD.md builds from the metrics files and is up to date
 │   ├── test_make_items.py        # training/make_items.py; tokenizer tests @pytest.mark.slow
 │   ├── test_notebook_sync.py     # notebook == make_items.py, pins, no create_repo / token literal
 │   ├── test_workflows.py         # action.yml / workflows: no issue content in shells, SHA pins, allow-listed expressions
+│   ├── test_constraints.py       # constraints-linux.txt: the Linux lock format and pins
 │   ├── test_sandbox.py           # sandbox fixtures, expected_local.json, compare.py, create_issue.py
 │   ├── test_model_smoke.py       # @pytest.mark.slow, real model, 3 fixtures
 │   └── test_parity_val.py        # @pytest.mark.slow, production path vs Phase 3 val predictions (30 issues)
@@ -1211,6 +1216,7 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.17 | `constraints-linux.txt` is the Linux lock (36 pins) generated from CI run 37009763300 (commit f8267ca), replacing the macOS-derived pins; §7.7 states its source. CI and the sandbox workflow run on `ubuntu-24.04`; §12.5 keeps `ubuntu-latest` for consumers, with a re-test note for Ubuntu 26 (2026-10-19). | Prasanna + Claude |
 | 2026-10-02 | 1.0.18 | The cold-install step of `action.yml` records which torch install path succeeded (`cpu-index-only` or `fallback: extra-index-url`) in the step summary and log. | Prasanna + Claude |
 | 2026-10-02 | 1.0.19 | Phase 4 sandbox results. §6.3: criterion 4 NFR-1 not met on a 2-vCPU runner (p50 864 ms, p95 3.5 s), documented with the v1.2 ONNX plan; criterion 5 met (run ids). §7.7: issues-triggered runs restore but cannot save caches; `warm-cache` on schedule / dispatch; eviction after 7 days unused. §12.4: `warm-cache` input (`--warm`). §12.5: twice-weekly `schedule` trigger (`17 3 * * 1,4`), `warm-cache` dispatch input and expression; `github.event_name` allow-listed. §11: `sandbox/create_issue.py` (tested in `tests/test_sandbox.py`). §13 Phase 4 tasks 8-9. §15: R14. §17: Q4 resolved. | Prasanna + Claude |
+| 2026-10-03 | 1.0.20 | Phase 4 gate passed (`results/phase4.md`): CI run 37058459160 green on `88ad0bf`; warm-cache verified in the sandbox (run 37058789375 saved both caches; issue run 37059668421 restored both); annotated tag `v1.0.0-rc1` on `88ad0bf`. Header notes the gate. §11: the tests tree lists `test_fetch_data.py`, `test_build_dataset.py`, `test_run_eval.py`, `test_posthoc_analysis.py` and `test_constraints.py`. | Prasanna + Claude |
 
 ---
 
