@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.9 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.10 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -219,7 +219,7 @@ analysis is acceptable; a hidden miss is not.
    cross-repo macro-F1 (§10.2) on the NLBSE'24 test split.
 2. Post-calibration ECE ≤ 0.10 on the test split.
 3. A threshold exists on validation data giving **≥ 90% precision** on auto-labelled issues. Report
-   the coverage it achieves on the test split.
+   the coverage it achieves on the test split. Reported per label (met for k of 3 labels).
 4. NFR-1 is met, or the measured latency is documented with the ONNX plan (v1.2).
 5. The Action runs end-to-end on a sandbox repo for at least 20 real issues opened by hand.
 
@@ -626,6 +626,9 @@ position. It is not part of the v1.0 contract.
 | Latency | p50/p95 per issue, CPU, model preloaded, 100 issues | Custom timer |
 | Model load time | Cold load from HF cache | Custom timer |
 
+Coverage@precision is reported both as a curve over one global τ and with the per-label τ of the config
+(§10.4).
+
 ### 10.3 Required plots (`results/figures/`)
 
 1. Reliability diagram, before and after temperature calibration.
@@ -713,7 +716,7 @@ laya-triage/
 │   ├── phase0.md
 │   ├── phase3/                   # items_sha256.json: expected training-item hashes (+ generator)
 │   ├── experiments.md
-│   ├── metrics_val.json / metrics_test.json
+│   ├── phase3/val_R1b/, phase3/test_R1b/  # M1 aggregates incl. metrics_val.json / metrics_test.json
 │   └── figures/
 ├── tests/
 │   ├── test_preprocess.py
@@ -915,8 +918,9 @@ Tasks:
 4. Run M1 on test **once**. Produce all §10.3 plots. Fill in the §10.5 table.
 5. Write the HF model card: intended use, data, metrics, limitations.
 
-**Deliverables:** HF model at a pinned revision, `metrics_val.json`, `metrics_test.json`, figures,
-filled results table, thresholds in config.
+**Deliverables:** HF model at a pinned revision, `metrics_val.json`, `metrics_test.json` (with the other
+aggregates in `results/phase3/val_R1b/` and `results/phase3/test_R1b/`), figures, filled results table,
+thresholds in config.
 
 **Gate:** the success criteria in §6.3 (1–3) are evaluated and reported honestly, whether met or not.
 
@@ -930,6 +934,7 @@ Tasks:
 4. Create a sandbox repo. Run in **dry-run**, then **apply**, on at least 20 hand-written issues
    covering every class plus ambiguous cases.
 5. Measure cold and warm Action wall time (NFR-2, NFR-3).
+6. Assert `max_len` from the checkpoint config equals 1024 in `tests/test_model_smoke.py` (§9.4).
 
 **Deliverables:** working Action tagged `v1.0.0-rc1`, CI green, sandbox screenshots, timing numbers.
 
@@ -1055,6 +1060,7 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.7 | §11: add `training/build_notebook.py`, which generates `training/finetune_kaggle.ipynb`; `tests/test_notebook_sync.py` checks that regenerating gives the committed notebook byte for byte. §7.3 and §9.3: HF repo placeholders replaced with `Prasanna85/laya-issue-triage`. | Prasanna + Claude |
 | 2026-10-02 | 1.0.8 | Phase 3c-A (evaluation tooling). §10.4: candidate thresholds are the distinct val `answer_confidence` values among issues predicted ℓ; bootstrap seed `numpy.random.RandomState(42 + index of ℓ in LABELS)`, fresh per candidate. §11: `tests/test_gating.py`, `tests/test_plots.py`. | Prasanna + Claude |
 | 2026-10-02 | 1.0.9 | Phase 3c-B Stop A2 (owner decisions after the R1 val run). §9.3 calibration row: the notebook fit stays in `run_meta.json`; the shipped choice temperature is refit on val by NLL with `laya.calibrate` (weights unchanged; the shipped revision differs from R1 only in `rl_agent_config.json` `"temperature"`); R1's 119-item fit (4.0188) over-softened (val ECE 0.129, val-NLL-optimal T ≈ 2.7). §10.4: the config uses τ_lb; τ_point, the full curve and B1 under the same rule are reported on test as pre-declared secondary views. | Prasanna + Claude |
+| 2026-10-02 | 1.0.10 | Phase 3c-B Stop A3b (pre-freeze housekeeping). §6.3 criterion 3 is reported per label. §10.2: coverage@precision is reported as a global-τ curve and with the config's per-label τ. §11 and §13 Phase 3: M1 aggregates (incl. `metrics_val.json` / `metrics_test.json`) live in `results/phase3/val_R1b/` and `results/phase3/test_R1b/`. Phase 4 task 6: assert `max_len` 1024 from the checkpoint config in `tests/test_model_smoke.py` (§9.4). | Prasanna + Claude |
 
 ---
 

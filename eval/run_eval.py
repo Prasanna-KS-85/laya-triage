@@ -17,9 +17,12 @@ Usage (from the repo root):
   probabilities to within their 4-decimal rounding and gives the same label.
 
 Writes <out>/predictions_<split>_<tag>.csv (id, repo, gold, pred, p_<label>, answer_confidence,
-p_<label>_T1; no issue text) and a .meta.json beside it. An existing predictions file is never
+p_<label>_T1; no issue text) and a .meta.json beside it, each through a temporary file in the same
+directory and os.replace, meta first and the CSV last: the CSV only ever appears complete, so a crash
+leaves no CSV and the identical command can be re-run. An existing predictions CSV is never
 overwritten. --split test is refused unless config/triage.default.yml is committed and unmodified,
-the tag has no test predictions yet, and test.jsonl has a pinned SHA-256.
+its model.revision and model.max_len equal --revision and --expect-max-len, the tag has no test
+predictions yet, and test.jsonl has a pinned SHA-256.
 """
 
 import argparse
@@ -35,6 +38,7 @@ import hashlib
 import json
 import re
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -71,7 +75,7 @@ def softmax(z):
     return e / e.sum()
 
 
-def check_test_allowed(out_csv):
+def check_test_allowed(out_csv, revision, expect_max_len):
     rel = str(THRESHOLD_CONFIG.relative_to(ROOT))
     if not THRESHOLD_CONFIG.exists():
         raise SystemExit(f"refusing to run test: {rel} does not exist (thresholds come first, §10.4)")
@@ -79,10 +83,61 @@ def check_test_allowed(out_csv):
     clean = subprocess.run(["git", "diff", "--quiet", "HEAD", "--", rel], cwd=ROOT, check=False)
     if tracked.returncode or clean.returncode:
         raise SystemExit(f"refusing to run test: {rel} must be committed and unmodified")
+    import yaml
+
+    model = (yaml.safe_load(THRESHOLD_CONFIG.read_text()) or {}).get("model") or {}
+    for key, want in (("revision", revision), ("max_len", expect_max_len)):
+        if key not in model:
+            raise SystemExit(f"refusing to run test: {rel} has no model.{key}")
+        if model[key] != want:
+            raise SystemExit(f"refusing to run test: {rel} model.{key} {model[key]!r} != {want!r}")
     if out_csv.exists():
         raise SystemExit(f"refusing to re-run test: {out_csv.name} exists")
     if INPUT_SHA256["test"] is None:
         raise SystemExit("refusing to run test: pin the SHA-256 of data/processed/test.jsonl in INPUT_SHA256 first")
+
+
+def refuse_if_written(out_csv):
+    """The predictions CSV is the commit point; a .meta.json without it is a crash leftover and is replaced."""
+    if out_csv.exists():
+        raise SystemExit(f"refusing to overwrite {out_csv}")
+
+
+def _write_temp(path, write):
+    """Write via `write(f)` to a temporary file next to `path`; return the temporary path."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
+            write(f)
+            f.flush()
+            os.fsync(f.fileno())
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return Path(tmp)
+
+
+def write_outputs(out_csv, rows, meta):
+    """Atomically write the .meta.json, then the predictions CSV (temporary file + os.replace each)."""
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    refuse_if_written(out_csv)
+    meta_path = out_csv.with_suffix(".meta.json")
+
+    def write_csv(f):
+        w = csv.writer(f)
+        w.writerow(CSV_COLUMNS)
+        w.writerows(rows)
+
+    temps = []
+    try:
+        temps.append(_write_temp(meta_path, lambda f: f.write(json.dumps(meta, indent=1) + "\n")))
+        temps.append(_write_temp(out_csv, write_csv))
+        refuse_if_written(out_csv)
+        os.replace(temps[0], meta_path)
+        os.replace(temps[1], out_csv)
+    finally:
+        for t in temps:
+            t.unlink(missing_ok=True)
 
 
 def download(repo, revision):
@@ -138,9 +193,8 @@ def versions():
 def run(args):
     out_csv = args.out / f"predictions_{args.split}_{args.tag}.csv"
     if args.split == "test":
-        check_test_allowed(out_csv)
-    if out_csv.exists() or out_csv.with_suffix(".meta.json").exists():
-        raise SystemExit(f"refusing to overwrite {out_csv}")
+        check_test_allowed(out_csv, args.revision, args.expect_max_len)
+    refuse_if_written(out_csv)
     path = DATA / f"{args.split}.jsonl"
     digest = sha256_file(path)
     if digest != INPUT_SHA256[args.split]:
@@ -184,11 +238,6 @@ def run(args):
         if n % 50 == 0 or n == len(issues):
             print(f"{args.tag} {args.split}: {n}/{len(issues)} issues, {time.perf_counter() - t_loop:.0f} s", flush=True)
 
-    args.out.mkdir(parents=True, exist_ok=True)
-    with open(out_csv, "x", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(CSV_COLUMNS)
-        w.writerows(rows)
     meta = {
         "tag": args.tag, "split": args.split, "model": args.model_repo, "revision": agent.revision,
         "max_len": agent.cfg["max_len"], "head_max_len": agent.cfg["head_max_len"],
@@ -208,7 +257,7 @@ def run(args):
         "probabilities": "p_<label>: as returned by laya (rounded to 4 decimals); p_<label>_T1: unrounded",
         "versions": versions(),
     }
-    out_csv.with_suffix(".meta.json").write_text(json.dumps(meta, indent=1) + "\n")
+    write_outputs(out_csv, rows, meta)
     print(f"wrote {out_csv}; latency p50 {meta['latency_ms']['p50']:.0f} ms, p95 {meta['latency_ms']['p95']:.0f} ms; "
           f"T={t_choice:.4f}; max |softmax(z/T) - p| {max_dev:.1e}")
 

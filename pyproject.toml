@@ -20,6 +20,7 @@ dev = [
 ]
 eval = [
     "matplotlib==3.11.2",
+    "PyYAML==6.0.3",
     "scikit-learn==1.9.1",
 ]
 

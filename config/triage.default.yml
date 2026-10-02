@@ -1,0 +1,29 @@
+model:
+  repo: "Prasanna85/laya-issue-triage"
+  revision: "76ece1fb0eb8b32bd5d8c509293c1692a2534805"        # pinned; never "main" in production
+  max_len: 1024
+  backend: torch                  # torch | onnx (v1.2)
+
+labels:                           # model class -> GitHub label name
+  bug: "type: bug"
+  feature: "type: feature"
+  question: "type: question"
+  escalate: "triage: needs-human"
+
+gating:
+  thresholds:                     # §10.4 bootstrap lower bound on val (1.01 = never auto-apply)
+    bug: 0.6033
+    feature: 1.01
+    question: 1.01
+
+behaviour:
+  mode: dry-run                   # dry-run | apply   (default dry-run for safety)
+  comment_on_escalate: true
+  skip_if_labeled: true           # skip if any labels.{bug,feature,question} present
+  skip_authors: ["dependabot[bot]", "renovate[bot]"]
+  create_missing_labels: false
+  escalate_on_error: false
+
+preprocess:
+  max_code_lines: 20
+  max_body_chars: 6000

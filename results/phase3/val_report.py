@@ -11,7 +11,9 @@ Writes results/phase3/val_<run>/metrics_val.json and prints:
   is not changed and this scan is not used for thresholds);
 - §10.4 thresholds on M1 and B1 (eval/gating.py), in-sample on val, and the YAML that would go to
   config/triage.default.yml (not written here).
---figures DIR also writes the §10.3 figures as PNG to DIR.
+--figures DIR also writes the §10.3 figures as PNG to DIR. --compare-run R compares the M1 predictions with
+run R's (labels, T=1 columns, calibrated probabilities). --write-config writes the proposed YAML to
+config/triage.default.yml (refuses to replace a different existing file).
 """
 import argparse
 import csv
@@ -89,6 +91,7 @@ def temperature_scan(t1, gold, t_fitted):
         out.append({"T": tv, "fitted": t == "fitted", "nll": float(-np.log(p[np.arange(len(y)), y]).mean()),
                     "ece": ece_score(p.max(axis=1), (pred == y).astype(float), bins=metrics.ECE_BINS),
                     "accuracy": float((pred == y).mean())})
+    out.sort(key=lambda r: r["T"])
     grid = np.round(np.arange(0.5, 10.0001, 0.01), 2)
     nll = [float(-np.log(_softmax_rows(logp / tv)[np.arange(len(y)), y]).mean()) for tv in grid]
     return out, {"grid": "0.50..10.00 step 0.01", "T_min_nll": float(grid[int(np.argmin(nll))]), "nll": min(nll)}
@@ -114,6 +117,9 @@ def gating_report(gold, pred, conf):
     for rule in ("tau_lb", "tau_point"):
         taus = {lb: (fit[lb][rule] if fit[lb][rule] is not None else gating.NEVER) for lb in LABELS}
         out[rule] = {"taus": taus, "applied": gating.apply_thresholds(rows, taus)}
+    th, cov, prec = gating.coverage_precision_curve([r["answer_confidence"] for r in rows],
+                                                    [r["gold"] == r["pred"] for r in rows])
+    out["curve"] = {"threshold": th.tolist(), "coverage": cov.tolist(), "precision": prec.tolist()}
     out["note"] = "in-sample: fitted on val"
     return out
 
@@ -178,6 +184,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--run", default="R1")
     ap.add_argument("--figures", type=Path, default=None, help="write PNG figures to this directory")
+    ap.add_argument("--compare-run", default=None, help="compare M1 predictions with this run's (e.g. R1)")
+    ap.add_argument("--write-config", action="store_true", help="write config/triage.default.yml")
     args = ap.parse_args(argv)
     run_dir = ROOT / "results" / "phase3" / f"val_{args.run}"
     m1_csv = run_dir / f"predictions_val_M1_{args.run}.csv"
@@ -204,8 +212,33 @@ def main(argv=None):
         if s == "B1":
             b1_conf = [p[y] for p, y in zip(b_probs, b_pred)]
 
+    t_fit = m1_meta["applied_choice_temperature_3_options"]
+    y = np.array([LABELS.index(g) for g in gold])
+    logp = np.log(t1)
+    report["M1"]["nll"] = {
+        "calibrated": float(-np.log(_softmax_rows(logp / t_fit)[np.arange(len(y)), y]).mean()),
+        "T1": float(-logp[np.arange(len(y)), y].mean()),
+        "note": "from the unrounded T=1 columns; calibrated = softmax(log p_T1 / T_config)",
+    }
     print_report("val", report)
     print("\nM1 uncalibrated (T=1): ECE {ece:.4f}  Brier {brier:.4f}".format(**report["M1"]["uncalibrated_T1"]))
+    print(f"M1 NLL: calibrated (T={t_fit}) {report['M1']['nll']['calibrated']:.4f}, T=1 {report['M1']['nll']['T1']:.4f}")
+    comparison = None
+    if args.compare_run:
+        other_csv = ROOT / "results" / "phase3" / f"val_{args.compare_run}" / f"predictions_val_M1_{args.compare_run}.csv"
+        o_ids, _, o_pred, o_probs, _ = read_predictions(other_csv)
+        o_t1, _ = load_m1(other_csv)
+        assert o_ids == ids
+        comparison = {
+            "run": args.compare_run,
+            "labels_identical": sum(a == b for a, b in zip(m1_pred, o_pred)),
+            "t1_max_abs_diff": float(np.abs(t1 - o_t1).max()),
+            "calibrated_max_abs_diff": max(abs(p[c] - q[c]) for p, q in zip(m1_probs, o_probs) for c in LABELS),
+            "calibrated_rows_differing": sum(any(p[c] != q[c] for c in LABELS) for p, q in zip(m1_probs, o_probs)),
+        }
+        print(f"vs {args.compare_run}: labels identical {comparison['labels_identical']}/{len(ids)}; "
+              f"T=1 columns max |diff| {comparison['t1_max_abs_diff']:.2e}; calibrated probabilities differ on "
+              f"{comparison['calibrated_rows_differing']} rows (max |diff| {comparison['calibrated_max_abs_diff']:.4f})")
 
     paired = {"mcnemar_exact": mcnemar_exact(gold, m1_pred, preds["B1"]),
               "bootstrap_xrepo_macro_f1_diff": paired_bootstrap_xrepo(gold, m1_pred, preds["B1"], repos)}
@@ -215,7 +248,6 @@ def main(argv=None):
           f"cross-repo macro-F1 diff {bs['point']:+.4f}, 95% CI [{bs['ci95'][0]:+.4f}, {bs['ci95'][1]:+.4f}], "
           f"M1 better in {bs['share_resamples_a_better']:.1%} of resamples")
 
-    t_fit = m1_meta["applied_choice_temperature_3_options"]
     scan, fine = temperature_scan(t1, gold, t_fit)
     print("\nTemperature scan (information only; the model's T is unchanged):")
     print(f"{'T':>8} {'NLL':>7} {'ECE':>7} {'acc':>7}")
@@ -244,10 +276,16 @@ def main(argv=None):
 
     taus = gate["M1"]["tau_lb"]["taus"]
     yaml = threshold_yaml(m1_meta["revision"], m1_meta["max_len"], taus)
-    print("\nProposed config/triage.default.yml (NOT written):\n" + yaml)
+    print("\nProposed config/triage.default.yml:\n" + yaml)
+    if args.write_config:
+        cfg_path = ROOT / "config" / "triage.default.yml"
+        if cfg_path.exists() and cfg_path.read_text() != yaml:
+            raise SystemExit(f"refusing to replace a different {cfg_path.relative_to(ROOT)}")
+        cfg_path.write_text(yaml)
+        print(f"wrote {cfg_path.relative_to(ROOT)}")
 
     out = {"split": "val", "run": args.run, "n": len(gold), "inputs_sha256": inputs,
-           "systems": report, "paired_M1_vs_B1": paired,
+           "systems": report, "paired_M1_vs_B1": paired, "comparison": comparison,
            "temperature_scan": {"note": "information only; model temperature unchanged", "rows": scan, "fine": fine},
            "gating": gate, "proposed_config_yaml": yaml}
     (run_dir / "metrics_val.json").write_text(json.dumps(out, indent=1) + "\n")
