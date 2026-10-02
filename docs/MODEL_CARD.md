@@ -18,9 +18,10 @@ tags:
 ## Summary
 
 A fine-tuned [Laya](https://huggingface.co/convaiinnovations/laya) decision model that classifies a newly
-opened GitHub issue as one of `bug`, `feature`, `question` from its title and body. It is the model behind the laya-triage
-GitHub Action, which auto-applies a label only when `answer_confidence` reaches a per-label threshold and
-otherwise escalates the issue to a human.
+opened GitHub issue as one of `bug`, `feature`, `question` from its title and body. It is the model behind the
+[laya-triage](https://github.com/Prasanna-KS-85/laya-triage) GitHub Action, which auto-applies a label only when `answer_confidence` reaches a
+per-label threshold and otherwise escalates the issue to a human. Source code, install instructions and the
+full evaluation write-up: https://github.com/Prasanna-KS-85/laya-triage.
 
 - Revision `76ece1fb0eb8b32bd5d8c509293c1692a2534805`: weights of training run R1 (`a704b3eadd185f1fa028576cfa50605b6eada4a4`) with the choice
   temperature refit on validation data (4.0188 → 2.6968); nothing else differs.
@@ -129,9 +130,10 @@ per-repository macro-F1 scores, as in the NLBSE'24 competition.
 
 - [c] Derived, not published. NLBSE'24 publishes per-repository, per-class P/R/F1 only; pooled values were
   recovered exactly from them, because every test repository has 100 issues per class.
-- **Protocol differences.** B3 trains one classifier per repository on that repository's official-train rows
-  (all of them, including the 4 that overlap test), uses raw text, and is copied rather than re-run.
-  M1 and B1 are one model across all 5 repositories, trained on 1,196 rows with model selection,
+- **Protocol differences.** B3 trains one classifier per repository, each on only that repository's
+  300 official-train rows (together the 5 classifiers use all 1,500 rows, including the
+  4 whose content also appears in test). The SetFit input is raw text; the RoBERTa and fastText
+  setups were not inspected. B3 is copied rather than re-run. M1 and B1 are one model across all 5 repositories, trained on 1,196 rows with model selection,
   temperature and thresholds fitted on the 300-issue validation split. B2 is the base checkpoint
   without fine-tuning. B3 publishes no probabilities, so it has no ECE.
 - Per class (M1), precision / recall: bug 0.8326 / 0.7760; feature 0.8317 / 0.8400; question 0.7467 / 0.7900.

@@ -8,6 +8,7 @@ Every number comes from a file, never from this script:
 - config/triage.default.yml: model repo / revision / max_len, shipped thresholds, preprocessing limits;
 - results/phase3/refit/refit_summary.json: notebook vs val-refit temperature;
 - results/phase3/items_sha256.json: training rows and label counts, laya / transformers pins of the items build;
+- results/phase2.md: how the B3 baselines were trained (rows per classifier, input text), via `b3_training`;
 - results/experiments.md, row R1: epochs, label smoothing, accumulation, seed, base revision, trained revision,
   optimizer steps, Kaggle GPUs, train time;
 - PROJECT_SPEC.md §8.3 (official train size, dropped rows) and §9.3 (effective batch, Kaggle versions), the only
@@ -42,6 +43,7 @@ SOURCES = {
     "refit": ROOT / "results" / "phase3" / "refit" / "refit_summary.json",
     "items": ROOT / "results" / "phase3" / "items_sha256.json",
     "experiments": ROOT / "results" / "experiments.md",
+    "phase2": ROOT / "results" / "phase2.md",
     "spec": ROOT / "PROJECT_SPEC.md",
 }
 BASELINES = (("B1", "B1 TF-IDF + logistic regression"), ("B2_512-192", "B2 Laya base, zero-shot, 512/192 (native)"),
@@ -57,6 +59,7 @@ NLBSE24_BIBTEX = """@inproceedings{nlbse2024,
   year={2024}
 }"""
 LEDGER = "results/experiments.md R1"
+GITHUB_URL = "https://github.com/Prasanna-KS-85/laya-triage"  # also used by docs/make_readme.py
 
 
 def need(d, path, src):
@@ -89,6 +92,18 @@ def ledger_row(md, run_id, src="results/experiments.md"):
                 raise ValueError(f"{src}: row {run_id} has {len(cells)} cells, header has {len(header)}")
             return dict(zip(header, cells))
     raise ValueError(f"{src}: no row {run_id!r}")
+
+
+def b3_training(phase2_md):
+    """How the published B3 baselines were trained, as recorded in results/phase2.md: rows per classifier (SetFit
+    template, one classifier per repository) and whether the SetFit input is raw text. Raises if phase2.md changes."""
+    src = "results/phase2.md"
+    rows = search(r"classifier is trained only on \*\*that repo's (\d+) official-train rows\*\*", phase2_md, src)
+    search(r"one\s+classifier per repo", phase2_md, src)
+    search(r"raw\s+`title \+ \" \" \+ body` \(no cleaning\)", phase2_md, src)
+    search(r"setups of the RoBERTa and fastText baselines were not read", phase2_md, src)
+    search(r"including rows 559, 900, 901 and 1114,\s+whose content is also in official test", phase2_md, src)
+    return {"rows_per_classifier": int(rows.group(1))}
 
 
 def f4(x):
@@ -150,10 +165,11 @@ def facts(test, val, config, refit, items, experiments_md, spec_md):
     return out
 
 
-def build_card(test, val, config, refit, items, experiments_md, spec_md):
+def build_card(test, val, config, refit, items, experiments_md, spec_md, phase2_md):
     """The model card (markdown with HF front matter) from the parsed sources; raises on any missing value."""
     t, v = "metrics_test.json", "metrics_val.json"
     F = facts(test, val, config, refit, items, experiments_md, spec_md)
+    b3t = b3_training(phase2_md)
     sysm = {s: need(test, f"systems.{s}.metrics", t) for s in ("M1", *(b for b, _ in BASELINES))}
     m1 = sysm["M1"]
     t1 = need(test, "systems.M1.uncalibrated_T1", t)
@@ -240,9 +256,10 @@ tags:
 ## Summary
 
 A fine-tuned [Laya](https://huggingface.co/convaiinnovations/laya) decision model that classifies a newly
-opened GitHub issue as one of {q_labels} from its title and body. It is the model behind the laya-triage
-GitHub Action, which auto-applies a label only when `answer_confidence` reaches a per-label threshold and
-otherwise escalates the issue to a human.
+opened GitHub issue as one of {q_labels} from its title and body. It is the model behind the
+[laya-triage]({GITHUB_URL}) GitHub Action, which auto-applies a label only when `answer_confidence` reaches a
+per-label threshold and otherwise escalates the issue to a human. Source code, install instructions and the
+full evaluation write-up: {GITHUB_URL}.
 
 - Revision `{F['revision']}`: weights of training run R1 (`{F['trained_revision']}`) with the choice
   temperature refit on validation data ({F['T_notebook']:.4f} → {F['T_val']}); nothing else differs.
@@ -335,9 +352,10 @@ per-repository macro-F1 scores, as in the NLBSE'24 competition.
 
 - [c] Derived, not published. NLBSE'24 publishes per-repository, per-class P/R/F1 only; pooled values were
   recovered exactly from them, because every test repository has {per_cell} issues per class.
-- **Protocol differences.** B3 trains one classifier per repository on that repository's official-train rows
-  (all of them, including the {F['n_dropped']} that overlap test), uses raw text, and is copied rather than re-run.
-  M1 and B1 are one model across all {len(repos)} repositories, trained on {F['n_train']:,} rows with model selection,
+- **Protocol differences.** B3 trains one classifier per repository, each on only that repository's
+  {b3t['rows_per_classifier']} official-train rows (together the {len(repos)} classifiers use all {F['n_official']:,} rows, including the
+  {F['n_dropped']} whose content also appears in test). The SetFit input is raw text; the RoBERTa and fastText
+  setups were not inspected. B3 is copied rather than re-run. M1 and B1 are one model across all {len(repos)} repositories, trained on {F['n_train']:,} rows with model selection,
   temperature and thresholds fitted on the {F['n_val']}-issue validation split. B2 is the base checkpoint
   without fine-tuning. B3 publishes no probabilities, so it has no ECE.
 - Per class (M1), precision / recall: {'; '.join(f"{lb} {f4(pc[lb]['precision'])} / {f4(pc[lb]['recall'])}" for lb in LABELS)}.
@@ -427,6 +445,7 @@ def load_sources():
         "refit": json.loads(SOURCES["refit"].read_text()),
         "items": json.loads(SOURCES["items"].read_text()),
         "experiments_md": SOURCES["experiments"].read_text(),
+        "phase2_md": SOURCES["phase2"].read_text(),
         "spec_md": SOURCES["spec"].read_text(),
     }
 

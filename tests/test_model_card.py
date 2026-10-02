@@ -32,6 +32,11 @@ def test_card_builds_from_metrics_files(sources):
         assert f"\n{heading}\n" in card
 
 
+def test_card_links_to_the_github_repository(sources):
+    assert mc.GITHUB_URL == "https://github.com/Prasanna-KS-85/laya-triage"
+    assert f"[laya-triage]({mc.GITHUB_URL})" in mc.build_card(**sources)
+
+
 def test_committed_card_is_up_to_date(sources):
     assert mc.CARD.read_text() == mc.build_card(**sources), "run results/phase3/make_model_card.py"
 
@@ -78,3 +83,11 @@ def test_need():
     assert mc.need({"a": {"0.0": {"b": 1}}}, ("a", "0.0", "b"), "x") == 1
     with pytest.raises(KeyError, match=r"x: missing key 'a.c'"):
         mc.need({"a": {}}, "a.c", "x")
+
+
+def test_b3_training_facts_come_from_phase2(sources):
+    assert mc.b3_training(sources["phase2_md"]) == {"rows_per_classifier": 300}
+    with pytest.raises(ValueError, match="pattern not found"):
+        mc.b3_training(sources["phase2_md"].replace("were not read", "were read"))
+    card = mc.build_card(**sources)
+    assert "each on only that repository's 300 official-train rows" in " ".join(card.split())

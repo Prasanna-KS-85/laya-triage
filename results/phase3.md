@@ -487,7 +487,8 @@ No model runs. Every number below is in a file under `results/` (or the committe
 | Figures (§10.3) | Done | `results/figures/reliability_M1_R1b_test.png`, `coverage_precision_M1_R1b_test.png`, `confusion_M1_R1b_vs_B1_test.png`, `per_repo_f1_M1_R1b_vs_B1_test.png` |
 | Filled results table (§10.5) | Done | `PROJECT_SPEC.md` §10.5 (v1.0.12); "Test results" above |
 | Thresholds in config | Done | `config/triage.default.yml`: bug 0.6033, feature 1.01, question 1.01, `mode: dry-run`; committed before the test run (`d6bb242`, tag `phase3-prefreeze`) |
-| HF model card (task 5) | Generated; upload pending | `docs/MODEL_CARD.md`, built by `results/phase3/make_model_card.py` from `metrics_test.json`, `metrics_val.json` and the config; `tests/test_model_card.py` checks that it builds and is up to date |
+| HF model card (task 5) | Done: model card uploaded to the model repo by the owner (2026-10-02) | `docs/MODEL_CARD.md`, built by `results/phase3/make_model_card.py` from `metrics_test.json`, `metrics_val.json` and the config; `tests/test_model_card.py` checks that it builds and is up to date |
+| HF model repo visibility | Done: model repo public since 2026-10-02 (anonymous access to the pinned revision verified: HTTP 200 on config, tokenizer and weights) | `Prasanna85/laya-issue-triage` @ `76ece1fb0eb8b32bd5d8c509293c1692a2534805` |
 
 ### §6.3 criteria 1–4 (gate: 1–3 evaluated and reported, met or not)
 
@@ -505,11 +506,12 @@ whether met or not. They are, including the criterion 3 miss.
 
 1. **Criterion 4 → Phase 4.** Measure p50/p95 on a GitHub-hosted Linux runner (NFR-1, ≤ 1 s p95). If it
    misses, document it with the v1.2 ONNX plan.
-2. **Model card upload (owner).** Upload `docs/MODEL_CARD.md` as `README.md` of `Prasanna85/laya-issue-triage`,
+2. **Model card upload (owner). Done: uploaded by the owner (2026-10-02).** Upload `docs/MODEL_CARD.md` as `README.md` of `Prasanna85/laya-issue-triage`,
    then fill the citation placeholders (TODO) for Laya and NLBSE'24. The upload creates a new HF commit. The
    config and the card keep pinning `76ece1fb…`, which has the same weights and config. If the pin should move
    to the new commit, verify that it differs only in `README.md` first.
-3. **Make the HF repo public** before Phase 4's sandbox test (the Action downloads the model anonymously, NFR-4).
+3. **Make the HF repo public** before Phase 4's sandbox test (the Action downloads the model anonymously, NFR-4). **Done: public since 2026-10-02**, anonymous access to the pinned revision verified (HTTP 200 on config, tokenizer and weights).
+4. **Cross-links (Phase 5).** `README.md` now links the model repo, and `docs/MODEL_CARD.md` links the GitHub repository (`https://github.com/Prasanna-KS-85/laya-triage`). The card in the model repo is the version uploaded before that link existed: regenerate the card (`results/phase3/make_model_card.py`) and re-upload it after the GitHub repository is public, so the link resolves.
 
 ## Post-hoc exploratory analysis (not pre-declared)
 

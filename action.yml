@@ -1,6 +1,9 @@
 name: Laya Triage
 description: Label new GitHub issues as bug, feature or question with a fine-tuned Laya model, gated on calibrated confidence.
 author: Prasanna-KS-85
+branding:
+  icon: tag
+  color: purple
 
 # PROJECT_SPEC.md §7.4-§7.7, §12.4. Linux X64 runners only.
 # Security (§7.6): issue text is read only from $GITHUB_EVENT_PATH inside Python. No `${{ }}` expression appears
