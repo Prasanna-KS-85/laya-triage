@@ -1,6 +1,6 @@
 # Laya Triage — Project Specification & System Design
 
-> **Status:** v1.0.13 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
+> **Status:** v1.0.14 draft (source of truth) · **Last updated:** 2026-10-02 · **Owner:** Prasanna
 > **Working name:** `laya-triage` (rename freely; update this line and §11 when you do)
 
 This document is the **single source of truth** for the project. Every human and every coding agent
@@ -192,7 +192,7 @@ Each answer exposes two confidence values:
 | FR-2 | If `answer_confidence >= threshold[label]`, apply the configured label for that class. |
 | FR-3 | Otherwise, apply the configured escalation label (default `triage: needs-human`). If `comment_on_escalate` is true, post one comment with the top-2 labels and their probabilities. |
 | FR-4 | `dry-run` mode makes no changes to the issue. It writes the decision table to the job summary. |
-| FR-5 | Skip issues that already carry any configured type label, and skip authors in `skip_authors` (for example bots). Record the skip reason in the summary. |
+| FR-5 | Skip, in this order: pull requests (the payload has a `pull_request` key); `issues` events whose action is not `opened` (only when the event carries an action, so backfill issues from the REST API are never skipped for this); authors in `skip_authors` (for example bots); issues that already carry the escalation label ("already escalated", for idempotent backfill); and, with `skip_if_labeled`, issues that already carry any configured type label. Label and author comparisons are case-insensitive. Record the skip reason in the summary. |
 | FR-6 | `workflow_dispatch` backfill mode: classify the N most recent open issues, defaulting to dry-run. |
 | FR-7 | Every run writes a JSON log line per issue (prediction, probabilities, decision, latency, model revision) to the job summary and as a workflow artifact. |
 | FR-8 | Labels, thresholds, mode, and model revision are read from a YAML config file in the target repo (§12.3). Sensible defaults apply if the file is absent. |
@@ -341,12 +341,15 @@ GitHub         Workflow            laya_triage                     HF Hub / cach
 | Failure | Behaviour |
 |---|---|
 | Model download fails | Log a warning, write the summary, exit 0. No labels. Optionally add the escalation label if `escalate_on_error: true`. |
-| Inference raises | Same as above. Record the traceback in the summary, not in an issue comment. |
-| GitHub API 5xx or secondary rate limit | Retry with exponential backoff (3 attempts: 2 s, 4 s, 8 s), then fail soft. |
+| Inference raises | Same as above. Record the exception type and traceback frames (file:line:function) in the summary and the JSONL log, never the exception message (it could echo issue text; the same holds for download and tokenizer errors), and never in an issue comment. |
+| GitHub API 5xx, 429, secondary rate limit or network error | Retry with exponential backoff, 3 retries (2 s, 4 s, 8 s), then fail soft. |
 | GitHub API 403 (permissions) | Exit with a clear message naming the missing permission (`issues: write`). |
 | Empty or very short body | Classify on the title alone. The state still has a `body` key with an empty string. |
 | Config file invalid | Fail with a validation message listing the bad keys. Do not guess. |
-| Label does not exist in repo | Create it with a default colour (opt-in `create_missing_labels: true`). Otherwise warn and skip. |
+| Label does not exist in repo | Checked against the repository's labels before adding (GitHub's add-labels call would silently create it). Create it with a default colour (opt-in `create_missing_labels: true`). Otherwise warn and skip. |
+
+Misconfiguration (an invalid config, a missing permission, a missing token or a non-https API URL) fails
+loudly by design (exit 1); NFR-5 concerns runtime faults, which exit 0.
 
 ### 7.6 Security model
 
@@ -757,9 +760,14 @@ laya-triage/
 ├── tests/
 │   ├── test_preprocess.py
 │   ├── test_policy.py
+│   ├── conftest.py               # offline_classifier fixture for the slow tests (local HF cache, no network)
 │   ├── test_config.py
 │   ├── test_event_loader.py
 │   ├── test_github_client.py     # mocked HTTP
+│   ├── test_classifier.py        # Classifier with a fake agent: checks, mapping, errors without messages
+│   ├── test_reporter.py          # JSONL schema and summary; no issue text, no exception messages
+│   ├── test_main.py              # python -m laya_triage with fake classifier and client (modes, skips, exits)
+│   ├── test_no_shell_execution.py # AST scan of src/ for subprocess / os.system / eval / exec
 │   ├── test_eval_metrics.py      # eval/metrics.py on hand-computed fixtures
 │   ├── test_gating.py            # eval/gating.py (§10.4) on hand-computed fixtures
 │   ├── test_plots.py             # eval/plots.py on synthetic arrays (Agg backend)
@@ -767,7 +775,8 @@ laya-triage/
 │   ├── test_model_card.py        # docs/MODEL_CARD.md builds from the metrics files and is up to date
 │   ├── test_make_items.py        # training/make_items.py; tokenizer tests @pytest.mark.slow
 │   ├── test_notebook_sync.py     # notebook == make_items.py, pins, no create_repo / token literal
-│   └── test_model_smoke.py       # @pytest.mark.slow, real model, 3 fixtures
+│   ├── test_model_smoke.py       # @pytest.mark.slow, real model, 3 fixtures
+│   └── test_parity_val.py        # @pytest.mark.slow, production path vs Phase 3 val predictions (30 issues)
 └── .github/workflows/
     ├── ci.yml                    # ruff + pytest (no model weights)
     └── triage.yml                # dogfood: runs the action on this repo's issues
@@ -810,7 +819,7 @@ class Decision:
 | `preprocess` | `(title: str, body: str \| None, cfg) -> dict` | Pure |
 | `Classifier.__init__` | `(repo: str, revision: str, max_len: int, device="cpu")` | Loads the model once |
 | `Classifier.classify` | `(state: dict, issue_number: int) -> TriageResult` | Inference only |
-| `Classifier.classify_batch` | `(states, issue_numbers) -> list[TriageResult]` | Uses `predict_batch` |
+| `Classifier.classify_batch` | `(states, issue_numbers) -> list[TriageResult]` | Uses `predict_batch` (`batch_size` 8). Verified against single-issue `predict` (the call the thresholds were fitted on): identical labels and max \|Δp\| 0.0 on 3 synthetic issues and 30 val issues (`tests/test_model_smoke.py`, `tests/test_parity_val.py`, CPU fp32). If the two ever differ by more than the 4-decimal rounding, `classify_batch` must fall back to one `predict` per issue. |
 | `decide` | `(result: TriageResult, cfg) -> Decision` | **Pure**, fully unit-tested |
 | `should_skip` | `(issue: dict, cfg) -> str \| None` | Pure. Returns the skip reason or None. |
 | `GitHubClient.apply` | `(issue_number, decision) -> None` | Network calls, with retry |
@@ -839,7 +848,7 @@ gating:
 
 behaviour:
   mode: dry-run                   # dry-run | apply   (default dry-run for safety)
-  comment_on_escalate: true
+  comment_on_escalate: false      # comments are opt-in (labels only by default)
   skip_if_labeled: true           # skip if any labels.{bug,feature,question} present
   skip_authors: ["dependabot[bot]", "renovate[bot]"]
   create_missing_labels: false
@@ -885,12 +894,27 @@ jobs:
           backfill-count: ${{ github.event.inputs.backfill-count || '0' }}
 ```
 
-### 12.6 Escalation comment template (fixed text)
+### 12.6 Escalation comment templates (fixed text)
+
+Posted only when `comment_on_escalate: true`. `{label1}`, `{label2}` are the two most probable classes (ties in
+`LABELS` order); nothing else is filled in, so the comment never echoes issue content.
+
+(a) The predicted class's threshold is reachable (τ ≤ 1.0) and the confidence is below it:
 
 ```
 🤖 Laya Triage couldn't classify this issue confidently, so it's been marked for a maintainer.
 Top guesses: `{label1}` ({p1:.0%}), `{label2}` ({p2:.0%}).
 ```
+
+(b) The predicted class's threshold is unreachable (τ > 1.0, e.g. 1.01): auto-labelling of that class is disabled
+by configuration:
+
+```
+🤖 Laya Triage suggests `{label1}` ({p1:.0%}), but automatic labelling is disabled for this issue type in this repository's configuration, so it's been marked for a maintainer.
+Second guess: `{label2}` ({p2:.0%}).
+```
+
+FR-2 stays literal (`answer_confidence >= τ` applies), so τ = 1.0 can still apply at confidence 1.0000.
 
 ---
 
@@ -973,6 +997,10 @@ Tasks:
    covering every class plus ambiguous cases.
 5. Measure cold and warm Action wall time (NFR-2, NFR-3).
 6. Assert `max_len` from the checkpoint config equals 1024 in `tests/test_model_smoke.py` (§9.4).
+7. Parity test (`tests/test_parity_val.py`, slow): for 30 val issues, the raw title/body from
+   `data/raw/issues_train.csv` run through the production path (event dict → `preprocess` → `Classifier`) must
+   give the label and probabilities (|Δp| ≤ 1e-4) of `results/phase3/val_R1b/predictions_val_M1_R1b.csv`,
+   for `classify` and `classify_batch`.
 
 **Deliverables:** working Action tagged `v1.0.0-rc1`, CI green, sandbox screenshots, timing numbers.
 
@@ -1102,6 +1130,7 @@ These rules apply to Claude, Claude Code, and any other agent or human contribut
 | 2026-10-02 | 1.0.11 | Phase 3c-B Stop C (single test run of R1b `76ece1fb…`). §6.3 criterion 3: k filled in, met for 0 of 3 labels on test (bug τ 0.6033: test precision 0.8747 at coverage 0.2607; feature and question τ 1.01). Results in `results/phase3.md` (Test results) and `results/phase3/test_R1b/`. | Prasanna + Claude |
 | 2026-10-02 | 1.0.12 | Phase 3 gate. §10.5 filled with the test numbers (B0, B1, B2 both settings, published B3 rows with the derived-values footnote, M1); its coverage column is coverage at the val thresholds with the test precision. §6.3: criterion 3 text states the val and test outcome per label; criteria 1–4 annotated with results (MET / MET / NOT MET / PENDING, Phase 4). §11: `docs/MODEL_CARD.md` and `results/phase3/make_model_card.py`. | Prasanna + Claude |
 | 2026-10-02 | 1.0.13 | §11: add `results/phase3/test_report.py`, `tests/test_test_report.py` and `tests/test_model_card.py` to the tree. | Prasanna + Claude |
+| 2026-10-02 | 1.0.14 | Phase 4a (owner decisions D1–D6 and rulings). FR-5: skip pull requests, `issues` events whose action is not `opened` (only when an action is present), and issues already carrying the escalation label; case-insensitive comparisons. §7.5: retries are 3 retries (2 s, 4 s, 8 s), also for 429 and network errors; errors are recorded as exception type and frames, never the message; labels are checked before adding; misconfiguration exits 1 by design, NFR-5 concerns runtime faults. §12.2: `classify_batch` uses `predict_batch`, verified equal to `predict` (max \|Δp\| 0.0 on 33 issues). §12.3: `comment_on_escalate` defaults to false. §12.6: two templates, (b) for τ > 1.0. §11: new test files. Phase 4 task 7: parity test. | Prasanna + Claude |
 
 ---
 

@@ -18,7 +18,7 @@ gating:
 
 behaviour:
   mode: dry-run                   # dry-run | apply   (default dry-run for safety)
-  comment_on_escalate: true
+  comment_on_escalate: false     # comments are opt-in (labels only by default)
   skip_if_labeled: true           # skip if any labels.{bug,feature,question} present
   skip_authors: ["dependabot[bot]", "renovate[bot]"]
   create_missing_labels: false
