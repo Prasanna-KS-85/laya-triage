@@ -1,0 +1,677 @@
+{
+ "split": "val",
+ "run": "R1",
+ "n": 300,
+ "inputs_sha256": {
+  "results/phase3/val_R1/predictions_val_M1_R1.csv": "86ebcdf448d30a498eba4c9f09f6d936475d1d769cef4ef3f7bb7ebc993227d4",
+  "results/phase2/predictions_val_B1.csv": "3faaeca90a678f4d17892714521ee4c84d6776fddbf076cddcf5b4b5517868d9",
+  "results/phase2/predictions_val_B2_512-192.csv": "82ef7b46381603e5cb52c29359954adef06aa43921623bad5659f4012d50c806",
+  "results/phase2/predictions_val_B2_1024-256.csv": "c60001db529cdff1e8b62e548cf51a054072cb9bf28d21e6594edc3fb26978bb"
+ },
+ "systems": {
+  "M1": {
+   "metrics": {
+    "n": 300,
+    "accuracy": 0.87,
+    "cross_repo_macro_f1": 0.8691398714738117,
+    "pooled_macro_f1": 0.8699423389680154,
+    "per_class": {
+     "bug": {
+      "precision": 0.8969072164948454,
+      "recall": 0.87,
+      "f1": 0.883248730964467,
+      "support": 100
+     },
+     "feature": {
+      "precision": 0.8490566037735849,
+      "recall": 0.9,
+      "f1": 0.8737864077669903,
+      "support": 100
+     },
+     "question": {
+      "precision": 0.865979381443299,
+      "recall": 0.84,
+      "f1": 0.8527918781725888,
+      "support": 100
+     }
+    },
+    "per_repo_macro_f1": {
+     "bitcoin/bitcoin": 0.8512820512820513,
+     "facebook/react": 0.8975546732211509,
+     "microsoft/vscode": 0.8818274069192061,
+     "opencv/opencv": 0.781868976990928,
+     "tensorflow/tensorflow": 0.9331662489557226
+    },
+    "ece": 0.1288166666666667,
+    "brier": 0.24739502333333344,
+    "predicted_counts": {
+     "bug": 97,
+     "feature": 106,
+     "question": 97
+    },
+    "confusion": {
+     "labels": [
+      "bug",
+      "feature",
+      "question"
+     ],
+     "rows_gold_cols_pred": [
+      [
+       87,
+       6,
+       7
+      ],
+      [
+       4,
+       90,
+       6
+      ],
+      [
+       6,
+       10,
+       84
+      ]
+     ]
+    }
+   },
+   "meta": {
+    "tag": "M1_R1",
+    "split": "val",
+    "model": "Prasanna85/laya-issue-triage",
+    "revision": "a704b3eadd185f1fa028576cfa50605b6eada4a4",
+    "max_len": 1024,
+    "head_max_len": 256,
+    "question": "ISSUE_TYPE_QUESTION",
+    "input": {
+     "file": "val.jsonl",
+     "sha256": "330bab114a6ff83cf508ef948603b53a6425f012f4e9df14e69490cc02d60d6b",
+     "rows": 300
+    },
+    "device": "cpu",
+    "dtype": "torch.float32",
+    "amp_enabled": false,
+    "torch_threads": 8,
+    "config_temperature": [
+     4.018789291381836,
+     1.2,
+     1.2
+    ],
+    "config_temperature_by_options": null,
+    "applied_choice_temperature_3_options": 4.018789291381836,
+    "t1_method": "softmax of raw option logits from laya.calibrate.records_from_labeled (second forward pass)",
+    "t1_check_max_abs_dev_vs_returned": 4.991991689788644e-05,
+    "share_truncated": 0.11333333333333333,
+    "latency_ms": {
+     "timed": "agent.predict per issue, model preloaded, 3 warm-up calls",
+     "p50": 205.39385397569276,
+     "p95": 494.7192722844193,
+     "mean": 247.35971028664304,
+     "max": 549.670749984216,
+     "n": 300
+    },
+    "load_s": 2.9,
+    "wall_s": 151.9,
+    "probabilities": "p_<label>: as returned by laya (rounded to 4 decimals); p_<label>_T1: unrounded",
+    "versions": {
+     "python": "3.11.17",
+     "laya": "0.3.23",
+     "torch": "2.14.1",
+     "transformers": "5.18.0",
+     "tokenizers": "0.23.2",
+     "huggingface_hub": "1.33.0",
+     "numpy": "2.4.6"
+    }
+   },
+   "uncalibrated_T1": {
+    "ece": 0.10433728173043978,
+    "brier": 0.23207941507488633
+   }
+  },
+  "B1": {
+   "metrics": {
+    "n": 300,
+    "accuracy": 0.76,
+    "cross_repo_macro_f1": 0.7567245523019369,
+    "pooled_macro_f1": 0.7591237239225442,
+    "per_class": {
+     "bug": {
+      "precision": 0.7840909090909091,
+      "recall": 0.69,
+      "f1": 0.7340425531914891,
+      "support": 100
+     },
+     "feature": {
+      "precision": 0.7454545454545455,
+      "recall": 0.82,
+      "f1": 0.780952380952381,
+      "support": 100
+     },
+     "question": {
+      "precision": 0.7549019607843137,
+      "recall": 0.77,
+      "f1": 0.7623762376237624,
+      "support": 100
+     }
+    },
+    "per_repo_macro_f1": {
+     "bitcoin/bitcoin": 0.6926434443596915,
+     "facebook/react": 0.803594351732991,
+     "microsoft/vscode": 0.7253932253932254,
+     "opencv/opencv": 0.7426426426426426,
+     "tensorflow/tensorflow": 0.819349097381134
+    },
+    "ece": 0.060706901092700875,
+    "brier": 0.3349639645493985,
+    "predicted_counts": {
+     "bug": 88,
+     "feature": 110,
+     "question": 102
+    },
+    "confusion": {
+     "labels": [
+      "bug",
+      "feature",
+      "question"
+     ],
+     "rows_gold_cols_pred": [
+      [
+       69,
+       17,
+       14
+      ],
+      [
+       7,
+       82,
+       11
+      ],
+      [
+       12,
+       11,
+       77
+      ]
+     ]
+    }
+   }
+  },
+  "B2_512-192": {
+   "metrics": {
+    "n": 300,
+    "accuracy": 0.62,
+    "cross_repo_macro_f1": 0.577188433990678,
+    "pooled_macro_f1": 0.5857856275014295,
+    "per_class": {
+     "bug": {
+      "precision": 0.532051282051282,
+      "recall": 0.83,
+      "f1": 0.6484375,
+      "support": 100
+     },
+     "feature": {
+      "precision": 0.7053571428571429,
+      "recall": 0.79,
+      "f1": 0.7452830188679247,
+      "support": 100
+     },
+     "question": {
+      "precision": 0.75,
+      "recall": 0.24,
+      "f1": 0.36363636363636365,
+      "support": 100
+     }
+    },
+    "per_repo_macro_f1": {
+     "bitcoin/bitcoin": 0.5863867211693299,
+     "facebook/react": 0.6933621933621933,
+     "microsoft/vscode": 0.4618580110866226,
+     "opencv/opencv": 0.4616161616161616,
+     "tensorflow/tensorflow": 0.6827190827190828
+    },
+    "ece": 0.08423500000000002,
+    "brier": 0.5144805853333336,
+    "predicted_counts": {
+     "bug": 156,
+     "feature": 112,
+     "question": 32
+    },
+    "confusion": {
+     "labels": [
+      "bug",
+      "feature",
+      "question"
+     ],
+     "rows_gold_cols_pred": [
+      [
+       83,
+       16,
+       1
+      ],
+      [
+       14,
+       79,
+       7
+      ],
+      [
+       59,
+       17,
+       24
+      ]
+     ]
+    }
+   }
+  },
+  "B2_1024-256": {
+   "metrics": {
+    "n": 300,
+    "accuracy": 0.63,
+    "cross_repo_macro_f1": 0.5918687374893958,
+    "pooled_macro_f1": 0.5988968846244965,
+    "per_class": {
+     "bug": {
+      "precision": 0.5384615384615384,
+      "recall": 0.84,
+      "f1": 0.6562499999999999,
+      "support": 100
+     },
+     "feature": {
+      "precision": 0.7181818181818181,
+      "recall": 0.79,
+      "f1": 0.7523809523809524,
+      "support": 100
+     },
+     "question": {
+      "precision": 0.7647058823529411,
+      "recall": 0.26,
+      "f1": 0.3880597014925373,
+      "support": 100
+     }
+    },
+    "per_repo_macro_f1": {
+     "bitcoin/bitcoin": 0.5863867211693299,
+     "facebook/react": 0.6933621933621933,
+     "microsoft/vscode": 0.49515074847143165,
+     "opencv/opencv": 0.5017249417249418,
+     "tensorflow/tensorflow": 0.6827190827190828
+    },
+    "ece": 0.08487966666666667,
+    "brier": 0.5099053911333336,
+    "predicted_counts": {
+     "bug": 156,
+     "feature": 110,
+     "question": 34
+    },
+    "confusion": {
+     "labels": [
+      "bug",
+      "feature",
+      "question"
+     ],
+     "rows_gold_cols_pred": [
+      [
+       84,
+       15,
+       1
+      ],
+      [
+       14,
+       79,
+       7
+      ],
+      [
+       58,
+       16,
+       26
+      ]
+     ]
+    }
+   }
+  }
+ },
+ "paired_M1_vs_B1": {
+  "mcnemar_exact": {
+   "a_right_b_wrong": 50,
+   "a_wrong_b_right": 17,
+   "p_value": 6.737973666915461e-05
+  },
+  "bootstrap_xrepo_macro_f1_diff": {
+   "point": 0.11241531917187475,
+   "ci95": [
+    0.06245323578216645,
+    0.1650073847828238
+   ],
+   "share_resamples_a_better": 1.0,
+   "n_boot": 2000,
+   "seed": 42
+  }
+ },
+ "temperature_scan": {
+  "note": "information only; model temperature unchanged",
+  "rows": [
+   {
+    "T": 1.0,
+    "fitted": false,
+    "nll": 0.7207138297835255,
+    "ece": 0.10433728173043978,
+    "accuracy": 0.87
+   },
+   {
+    "T": 1.5,
+    "fitted": false,
+    "nll": 0.5370158385807675,
+    "ece": 0.08200534126721787,
+    "accuracy": 0.87
+   },
+   {
+    "T": 2.0,
+    "fitted": false,
+    "nll": 0.46857777829301606,
+    "ece": 0.047272563966999956,
+    "accuracy": 0.87
+   },
+   {
+    "T": 3.0,
+    "fitted": false,
+    "nll": 0.44821050077841346,
+    "ece": 0.082085016206996,
+    "accuracy": 0.87
+   },
+   {
+    "T": 4.018789291381836,
+    "fitted": true,
+    "nll": 0.4813069214840353,
+    "ece": 0.12881707216310787,
+    "accuracy": 0.87
+   },
+   {
+    "T": 5.0,
+    "fitted": false,
+    "nll": 0.5258819110710912,
+    "ece": 0.17817180831800827,
+    "accuracy": 0.87
+   },
+   {
+    "T": 6.0,
+    "fitted": false,
+    "nll": 0.5718108068092158,
+    "ece": 0.22271910116304594,
+    "accuracy": 0.87
+   },
+   {
+    "T": 8.0,
+    "fitted": false,
+    "nll": 0.6521774691327971,
+    "ece": 0.2913711230815919,
+    "accuracy": 0.87
+   }
+  ],
+  "fine": {
+   "grid": "0.50..10.00 step 0.01",
+   "T_min_nll": 2.7,
+   "nll": 0.44551491478497024
+  }
+ },
+ "gating": {
+  "M1": {
+   "per_label": {
+    "bug": {
+     "n_predicted": 97,
+     "n_candidates": 96,
+     "seed": 42,
+     "tau_lb": 0.5218,
+     "at_tau_lb": {
+      "tau": 0.5218,
+      "support": 77,
+      "precision": 0.948051948051948,
+      "lower_bound": 0.9090909090909091
+     },
+     "tau_point": 0.4712,
+     "at_tau_point": {
+      "tau": 0.4712,
+      "support": 87,
+      "precision": 0.9080459770114943,
+      "lower_bound": 0.8505747126436781
+     }
+    },
+    "feature": {
+     "n_predicted": 106,
+     "n_candidates": 102,
+     "seed": 43,
+     "tau_lb": 1.01,
+     "at_tau_lb": null,
+     "tau_point": 0.6315,
+     "at_tau_point": {
+      "tau": 0.6315,
+      "support": 92,
+      "precision": 0.9021739130434783,
+      "lower_bound": 0.8586956521739131
+     }
+    },
+    "question": {
+     "n_predicted": 97,
+     "n_candidates": 97,
+     "seed": 44,
+     "tau_lb": 1.01,
+     "at_tau_lb": null,
+     "tau_point": 0.5172,
+     "at_tau_point": {
+      "tau": 0.5172,
+      "support": 90,
+      "precision": 0.9,
+      "lower_bound": 0.8444444444444444
+     }
+    }
+   },
+   "tau_lb": {
+    "taus": {
+     "bug": 0.5218,
+     "feature": 1.01,
+     "question": 1.01
+    },
+    "applied": {
+     "n": 300,
+     "applied": 77,
+     "escalated": 223,
+     "coverage": 0.25666666666666665,
+     "precision": 0.948051948051948,
+     "per_label": {
+      "bug": {
+       "tau": 0.5218,
+       "predicted": 97,
+       "applied": 77,
+       "coverage": 0.25666666666666665,
+       "precision": 0.948051948051948
+      },
+      "feature": {
+       "tau": 1.01,
+       "predicted": 106,
+       "applied": 0,
+       "coverage": 0.0,
+       "precision": null
+      },
+      "question": {
+       "tau": 1.01,
+       "predicted": 97,
+       "applied": 0,
+       "coverage": 0.0,
+       "precision": null
+      }
+     }
+    }
+   },
+   "tau_point": {
+    "taus": {
+     "bug": 0.4712,
+     "feature": 0.6315,
+     "question": 0.5172
+    },
+    "applied": {
+     "n": 300,
+     "applied": 269,
+     "escalated": 31,
+     "coverage": 0.8966666666666666,
+     "precision": 0.9033457249070632,
+     "per_label": {
+      "bug": {
+       "tau": 0.4712,
+       "predicted": 97,
+       "applied": 87,
+       "coverage": 0.29,
+       "precision": 0.9080459770114943
+      },
+      "feature": {
+       "tau": 0.6315,
+       "predicted": 106,
+       "applied": 92,
+       "coverage": 0.30666666666666664,
+       "precision": 0.9021739130434783
+      },
+      "question": {
+       "tau": 0.5172,
+       "predicted": 97,
+       "applied": 90,
+       "coverage": 0.3,
+       "precision": 0.9
+      }
+     }
+    }
+   },
+   "note": "in-sample: fitted on val"
+  },
+  "B1": {
+   "per_label": {
+    "bug": {
+     "n_predicted": 88,
+     "n_candidates": 88,
+     "seed": 42,
+     "tau_lb": 0.7697721833977644,
+     "at_tau_lb": {
+      "tau": 0.7697721833977644,
+      "support": 34,
+      "precision": 0.9705882352941176,
+      "lower_bound": 0.9117647058823529
+     },
+     "tau_point": 0.6293055205581081,
+     "at_tau_point": {
+      "tau": 0.6293055205581081,
+      "support": 53,
+      "precision": 0.9056603773584906,
+      "lower_bound": 0.8490566037735849
+     }
+    },
+    "feature": {
+     "n_predicted": 110,
+     "n_candidates": 110,
+     "seed": 43,
+     "tau_lb": 0.6885899025760078,
+     "at_tau_lb": {
+      "tau": 0.6885899025760078,
+      "support": 61,
+      "precision": 0.9508196721311475,
+      "lower_bound": 0.9016393442622951
+     },
+     "tau_point": 0.6623927966664426,
+     "at_tau_point": {
+      "tau": 0.6623927966664426,
+      "support": 66,
+      "precision": 0.9090909090909091,
+      "lower_bound": 0.8484848484848485
+     }
+    },
+    "question": {
+     "n_predicted": 102,
+     "n_candidates": 102,
+     "seed": 44,
+     "tau_lb": 0.8691900491568142,
+     "at_tau_lb": {
+      "tau": 0.8691900491568142,
+      "support": 21,
+      "precision": 1.0,
+      "lower_bound": 1.0
+     },
+     "tau_point": 0.6687863654634182,
+     "at_tau_point": {
+      "tau": 0.6687863654634182,
+      "support": 50,
+      "precision": 0.9,
+      "lower_bound": 0.82
+     }
+    }
+   },
+   "tau_lb": {
+    "taus": {
+     "bug": 0.7697721833977644,
+     "feature": 0.6885899025760078,
+     "question": 0.8691900491568142
+    },
+    "applied": {
+     "n": 300,
+     "applied": 116,
+     "escalated": 184,
+     "coverage": 0.38666666666666666,
+     "precision": 0.9655172413793104,
+     "per_label": {
+      "bug": {
+       "tau": 0.7697721833977644,
+       "predicted": 88,
+       "applied": 34,
+       "coverage": 0.11333333333333333,
+       "precision": 0.9705882352941176
+      },
+      "feature": {
+       "tau": 0.6885899025760078,
+       "predicted": 110,
+       "applied": 61,
+       "coverage": 0.20333333333333334,
+       "precision": 0.9508196721311475
+      },
+      "question": {
+       "tau": 0.8691900491568142,
+       "predicted": 102,
+       "applied": 21,
+       "coverage": 0.07,
+       "precision": 1.0
+      }
+     }
+    }
+   },
+   "tau_point": {
+    "taus": {
+     "bug": 0.6293055205581081,
+     "feature": 0.6623927966664426,
+     "question": 0.6687863654634182
+    },
+    "applied": {
+     "n": 300,
+     "applied": 169,
+     "escalated": 131,
+     "coverage": 0.5633333333333334,
+     "precision": 0.9053254437869822,
+     "per_label": {
+      "bug": {
+       "tau": 0.6293055205581081,
+       "predicted": 88,
+       "applied": 53,
+       "coverage": 0.17666666666666667,
+       "precision": 0.9056603773584906
+      },
+      "feature": {
+       "tau": 0.6623927966664426,
+       "predicted": 110,
+       "applied": 66,
+       "coverage": 0.22,
+       "precision": 0.9090909090909091
+      },
+      "question": {
+       "tau": 0.6687863654634182,
+       "predicted": 102,
+       "applied": 50,
+       "coverage": 0.16666666666666666,
+       "precision": 0.9
+      }
+     }
+    }
+   },
+   "note": "in-sample: fitted on val"
+  }
+ },
+ "proposed_config_yaml": "model:\n  repo: \"Prasanna85/laya-issue-triage\"\n  revision: \"a704b3eadd185f1fa028576cfa50605b6eada4a4\"        # pinned; never \"main\" in production\n  max_len: 1024\n  backend: torch                  # torch | onnx (v1.2)\n\nlabels:                           # model class -> GitHub label name\n  bug: \"type: bug\"\n  feature: \"type: feature\"\n  question: \"type: question\"\n  escalate: \"triage: needs-human\"\n\ngating:\n  thresholds:                     # \u00a710.4 bootstrap lower bound on val (1.01 = never auto-apply)\n    bug: 0.5218\n    feature: 1.01\n    question: 1.01\n\nbehaviour:\n  mode: dry-run                   # dry-run | apply   (default dry-run for safety)\n  comment_on_escalate: true\n  skip_if_labeled: true           # skip if any labels.{bug,feature,question} present\n  skip_authors: [\"dependabot[bot]\", \"renovate[bot]\"]\n  create_missing_labels: false\n  escalate_on_error: false\n\npreprocess:\n  max_code_lines: 20\n  max_body_chars: 6000\n"
+}

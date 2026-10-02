@@ -1,0 +1,25 @@
+{
+ "model": "Prasanna85/laya-issue-triage",
+ "revision": "a704b3eadd185f1fa028576cfa50605b6eada4a4",
+ "max_len": 1024,
+ "head_max_len": 256,
+ "device": "cpu",
+ "dtype": "torch.float32",
+ "amp_enabled": false,
+ "laya": "0.3.23",
+ "torch": "2.14.1",
+ "import_s": 0.47,
+ "load_s": 3.14,
+ "load_threads": 8,
+ "peak_rss_after_load_MiB": 2863,
+ "peak_rss_end_MiB": 2863,
+ "latency_ms": {
+  "issues": "first 100 val.jsonl rows, one predict() each, 3 warm-up calls, model preloaded",
+  "threads": 8,
+  "p50": 222.73108351510018,
+  "p95": 465.364837218658,
+  "mean": 247.5398187560495,
+  "max": 518.5824579675682,
+  "n": 100
+ }
+}

@@ -3,6 +3,7 @@
 Usage (from the repo root):
   .venv/bin/python eval/run_eval.py --model-repo Prasanna85/laya-issue-triage --revision <sha> \
       --split val --expect-max-len 1024 --expect-head-max-len 256 --tag M1_<run_id> [--out DIR] [--download]
+      [--threads N]
 
 - Runs offline (HF_HUB_OFFLINE=1): the revision must be in the local HF cache. --download first
   fetches it with laya.load in a separate, online subprocess (a private repo needs HF_TOKEN in the
@@ -49,7 +50,7 @@ THRESHOLD_CONFIG = ROOT / "config" / "triage.default.yml"
 # hashed by tooling here; the owner pins it before the single test run.
 INPUT_SHA256 = {
     "val": "330bab114a6ff83cf508ef948603b53a6425f012f4e9df14e69490cc02d60d6b",
-    "test": None,
+    "test": "ede236c9cc1875a41b394119bf49f203877b4249e8dd413d373545640c8794b2",
 }
 WARMUP = 3
 ROUNDING_TOL = 5e-5 + 1e-9  # laya rounds probabilities to 4 decimals
@@ -150,6 +151,8 @@ def run(args):
 
     import torch
 
+    if args.threads is not None:
+        torch.set_num_threads(args.threads)
     t_start = time.perf_counter()
     agent = load_agent(args.model_repo, args.revision, args.expect_max_len, args.expect_head_max_len)
     load_s = time.perf_counter() - t_start
@@ -210,7 +213,7 @@ def run(args):
           f"T={t_choice:.4f}; max |softmax(z/T) - p| {max_dev:.1e}")
 
 
-def main(argv=None):
+def parse_args(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model-repo", required=True)
     ap.add_argument("--revision", required=True, help="40-hex commit SHA (never a branch)")
@@ -220,12 +223,19 @@ def main(argv=None):
     ap.add_argument("--tag", required=True, help="names the output files, e.g. M1_run01")
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--download", action="store_true", help="fetch the revision first (child process, online)")
+    ap.add_argument("--threads", type=int, default=None, help="torch CPU threads (default: library default)")
     args = ap.parse_args(argv)
+    if args.threads is not None and args.threads < 1:
+        ap.error("--threads must be >= 1")
     if not re.fullmatch(r"[0-9a-f]{40}", args.revision):
         ap.error("--revision must be a 40-character commit SHA")
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", args.tag):
         ap.error("--tag may contain only letters, digits, '_', '.', '-'")
-    run(args)
+    return args
+
+
+def main(argv=None):
+    run(parse_args(argv))
 
 
 if __name__ == "__main__":
