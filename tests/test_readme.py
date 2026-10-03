@@ -121,6 +121,9 @@ def test_readme_front_door(readme):
     assert "[docs/USING_THE_MODEL.md](docs/USING_THE_MODEL.md)" in text
     assert "[PROJECT_SPEC.md](PROJECT_SPEC.md)" in text or "[`PROJECT_SPEC.md`](PROJECT_SPEC.md)" in text
     assert "dry-run, the default" in text and "changes nothing" in text
+    assert "**Confidence-gated GitHub issue triage powered by a fine-tuned Laya decision model.**" in readme
+    assert "**No hosted inference server. No per-request API fees. Human review when confidence is insufficient.**" in readme
+    assert "> **Project status:** `v" in readme
 
 
 def test_readme_mermaid_has_five_boxes_and_no_digits(readme):

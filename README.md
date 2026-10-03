@@ -4,10 +4,13 @@
 
 ![Laya Triage](docs/banner_image.png)
 
-**Laya Triage labels new GitHub issues as `bug`, `feature` or `question`, but only when its model is confident; everything else goes to a human.**
-It is a GitHub Action that runs a small fine-tuned [Laya](https://github.com/NandhaKishorM/laya) decision model on the runner's CPU: no server, no API key, no paid service.
+**Confidence-gated GitHub issue triage powered by a fine-tuned Laya decision model.**
 
-> **Status:** first public release (`v1.0.0`), a personal project by one developer. It is not a hosted service, not a chatbot and not a replacement for a maintainer: with the default settings it labels only the bugs it is most sure about and hands every other issue to a person.
+Laya Triage is an open-source GitHub Action that classifies newly opened issues as `bug`, `feature`, or `question`. It runs locally on the GitHub Actions runner's CPU, applies labels only when its confidence policy permits, and routes uncertain predictions to human review.
+
+**No hosted inference server. No per-request API fees. Human review when confidence is insufficient.**
+
+> **Project status:** `v1.0.0` — a personal open-source project. The current default policy automatically applies only sufficiently confident `bug` labels; `feature` and `question` predictions are escalated for human review.
 
 ## The 30-second explanation
 
