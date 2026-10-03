@@ -12,7 +12,9 @@ Every number comes from a file, never from this script:
 - results/experiments.md, row R1: epochs, label smoothing, accumulation, seed, base revision, trained revision,
   optimizer steps, Kaggle GPUs, train time;
 - PROJECT_SPEC.md §8.3 (official train size, dropped rows) and §9.3 (effective batch, Kaggle versions), the only
-  places those settings are recorded in the repo.
+  places those settings are recorded in the repo;
+- docs/snippets/classify_one.py: the laya-triage package example, inserted verbatim (the same text as README.md and
+  docs/USING_THE_MODEL.md, built by docs/make_readme.py).
 A missing key, row or pattern raises (KeyError / ValueError) naming the file. Consistency checks: config revision
 == test-run revision, config thresholds == thresholds applied on test, train + val + dropped == official train,
 spec accumulation steps == ledger grad_accum, spec GPUs == ledger GPUs.
@@ -45,6 +47,7 @@ SOURCES = {
     "experiments": ROOT / "results" / "experiments.md",
     "phase2": ROOT / "results" / "phase2.md",
     "spec": ROOT / "PROJECT_SPEC.md",
+    "classify_snippet": ROOT / "docs" / "snippets" / "classify_one.py",
 }
 BASELINES = (("B1", "B1 TF-IDF + logistic regression"), ("B2_512-192", "B2 Laya base, zero-shot, 512/192 (native)"),
              ("B2_1024-256", "B2 Laya base, zero-shot, 1024/256"))
@@ -165,11 +168,12 @@ def facts(test, val, config, refit, items, experiments_md, spec_md):
     return out
 
 
-def build_card(test, val, config, refit, items, experiments_md, spec_md, phase2_md):
+def build_card(test, val, config, refit, items, experiments_md, spec_md, phase2_md, classify_snippet):
     """The model card (markdown with HF front matter) from the parsed sources; raises on any missing value."""
     t, v = "metrics_test.json", "metrics_val.json"
     F = facts(test, val, config, refit, items, experiments_md, spec_md)
     b3t = b3_training(phase2_md)
+    tag = search(r"uses: Prasanna-KS-85/laya-triage@<[^>]*> # (v[\d.]+)", spec_md, "PROJECT_SPEC.md §12.5").group(1)
     sysm = {s: need(test, f"systems.{s}.metrics", t) for s in ("M1", *(b for b, _ in BASELINES))}
     m1 = sysm["M1"]
     t1 = need(test, "systems.M1.uncalibrated_T1", t)
@@ -307,6 +311,16 @@ answer["choice"], answer["answer_confidence"], answer["probabilities"]
 ```
 
 Gate on `answer_confidence` (the calibrated probability of the chosen label), not on `confidence`.
+
+### With the laya-triage package
+
+The [laya-triage]({GITHUB_URL}) package wraps the same steps: it brings the frozen question and `preprocess()`, so
+nothing is retyped. Install it with `pip install "laya_triage @ git+{GITHUB_URL}@{tag}"` (on Linux, install
+the CPU-only torch wheel first; see the repository's docs/USING_THE_MODEL.md), then:
+
+```python
+{classify_snippet.rstrip()}
+```
 
 ## Training data
 
@@ -447,6 +461,7 @@ def load_sources():
         "experiments_md": SOURCES["experiments"].read_text(),
         "phase2_md": SOURCES["phase2"].read_text(),
         "spec_md": SOURCES["spec"].read_text(),
+        "classify_snippet": SOURCES["classify_snippet"].read_text(),
     }
 
 

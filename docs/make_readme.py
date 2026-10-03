@@ -1,21 +1,27 @@
-"""Build README.md from docs/README.template.md and the committed result files (PROJECT_SPEC.md §13 Phase 5, §16 rule 11).
+"""Build README.md, docs/DEEP_DIVE.md, docs/USING_THE_ACTION.md and docs/USING_THE_MODEL.md from their templates
+(docs/*.template.md) and the committed result files (PROJECT_SPEC.md §13 Phase 5, §16 rule 11).
 Never touches the network, the model or the data.
 
 Run from anywhere: .venv/bin/python docs/make_readme.py [--check]
-The template holds prose and `{{name}}` placeholders only; tests/test_readme.py fails if it contains a number that
-is not a placeholder (version tags, FR-/NFR- ids, § references and fixture ids excepted). Every number comes from:
+The templates hold prose and `{{name}}` placeholders only; tests/test_readme.py fails if one contains a number that
+is not a placeholder (version tags, FR-/NFR- ids, § references and fixture ids excepted). Links in a template are
+relative to its output file. Every number comes from:
 - results/phase3/test_R1b/metrics_test.json: test metrics, paired comparisons, gating, latency, B3 rows, figure path;
 - results/phase3/val_R1b/metrics_val.json: val metrics and the §10.4 fit;
 - config/triage.default.yml: the configuration table, labels, shipped thresholds;
 - action.yml: the Action inputs table;
 - results/phase3/posthoc/posthoc.json: the near-duplicate check;
-- sandbox/expected_local.json: fixtures S17 and S18 (numbers only);
+- sandbox/expected_local.json: fixtures S01, S02, S05 (the worked example, re-decided here with policy.decide), S17
+  and S18 (numbers only); sandbox/issues.json: the authored text of S01 (our own fixture, never dataset text);
+- docs/snippets/classify_one.py and docs/snippets/consumer-minimal.yml: inserted verbatim (their constants are
+  checked against config/triage.default.yml by tests/test_snippets.py);
+- constraints-linux.txt: the torch pin for the CPU-only install in docs/USING_THE_MODEL.md;
 - results/phase4.md: sandbox run table (wall times) and the NFR-1 latency probe;
 - results/phase3.md: the pre-declared test command;
 - PROJECT_SPEC.md: the consumer workflow (§12.5), NFR targets (§6.2), runner (§17 Q4), pinned upstream commits (§8.1,
   §9.3); and everything docs/make_model_card.py already reads (results/phase3/make_model_card.py `facts`).
 A missing key, row or pattern raises (KeyError / ValueError) naming the file. Statuses (met / not met) are computed
-from the numbers, never typed. --check exits 1 if README.md differs from a fresh build instead of writing it.
+from the numbers, never typed. --check exits 1 if any output differs from a fresh build instead of writing it.
 """
 import argparse
 import json
@@ -33,11 +39,25 @@ import gating
 import make_model_card as mmc
 from make_model_card import CFG, f4, need
 
+from laya_triage import policy
+from laya_triage.classifier import TriageResult
+from laya_triage.config import validate
 from laya_triage.preprocess import CODE_HEAD_LINES, CODE_TAIL_LINES
 from laya_triage.questions import LABELS
 
+DOCS = ROOT / "docs"
 README = ROOT / "README.md"
-TEMPLATE = ROOT / "docs" / "README.template.md"
+TEMPLATE = DOCS / "README.template.md"
+OUTPUTS = {  # template -> generated file; links inside a template are relative to its output
+    TEMPLATE: README,
+    DOCS / "DEEP_DIVE.template.md": DOCS / "DEEP_DIVE.md",
+    DOCS / "USING_THE_ACTION.template.md": DOCS / "USING_THE_ACTION.md",
+    DOCS / "USING_THE_MODEL.template.md": DOCS / "USING_THE_MODEL.md",
+}
+SNIPPETS = {"snippet_classify_one": DOCS / "snippets" / "classify_one.py",
+            "snippet_consumer_minimal": DOCS / "snippets" / "consumer-minimal.yml"}
+# The worked example: fixture -> the decision it must show (apply, bug below its threshold, never-applied question).
+WORKED = {"S01": "apply", "S02": "escalate", "S05": "escalate"}
 SPEC = "PROJECT_SPEC.md"
 P4 = "results/phase4.md"
 EXTRA_SOURCES = {
@@ -47,6 +67,8 @@ EXTRA_SOURCES = {
     "expected_local": ROOT / "sandbox" / "expected_local.json",
     "phase3_md": ROOT / "results" / "phase3.md",
     "phase4_md": ROOT / "results" / "phase4.md",
+    "issues": ROOT / "sandbox" / "issues.json",
+    "constraints": ROOT / "constraints-linux.txt",
 }
 # Run ids of the sandbox runs the README cites; each row's role is checked against its cells (see `runtime`).
 RUN_COLD_ISSUE, RUN_WARM_ISSUE, RUN_WARM_ISSUE_2 = "37025861693", "37028030094", "37059668421"
@@ -184,6 +206,10 @@ def runtime(phase4_md, spec_md, test):
         value, unit = target.split()
         return seconds <= float(value) * (60 if unit == "min" else 1)
 
+    goal, goal_unit = targets["1"].split()
+    if goal_unit != "s":
+        raise ValueError(f"{SPEC} §6.2: NFR-1 target {targets['1']!r} is not in seconds")
+    warm_sorted = sorted(warm, key=secs)
     q4 = grab(r"(\d+) logical CPUs, ([^,]+), ([\d,]+) MiB RAM", spec_md, f"{SPEC} Q4")
     lat = need(test, "latency.test_run", "metrics_test.json")
     return {
@@ -191,7 +217,10 @@ def runtime(phase4_md, spec_md, test):
         "warm_cache": warm_cache, "cold_dispatch": cold_dispatch,
         "probe_n": n, "probe_p50": f"{p50:.0f} ms", "probe_p95": f"{p95 / 1000:.1f} s", "probe_threads": threads,
         "nfr1": targets["1"], "nfr2": targets["2"], "nfr3": targets["3"],
+        "probe_p95_secs": f"{p95 / 1000:.1f}", "nfr1_goal": f"{goal} second{'' if float(goal) == 1 else 's'}",
+        "warm_range": f"{warm_sorted[0]} to {warm_sorted[-1]}" if len(set(warm)) > 1 else warm[0],
         "nfr1_status": "met" if within(targets["1"], p95 / 1000) else "not met",
+        "latency_status": "met" if within(targets["1"], p95 / 1000) else "missed",
         "nfr2_status": "met" if all(within(targets["2"], secs(w)) for w in warm) else "not met",
         "nfr3_status": "met" if within(targets["3"], secs(cold)) else "not met",
         "runner_cpus": q4.group(1), "runner_cpu_model": q4.group(2),
@@ -201,8 +230,59 @@ def runtime(phase4_md, spec_md, test):
     }
 
 
+def worked_example(expected_local, issues, config, phase4_md):
+    """S01, S02 and S05 from expected_local.json, each decided again by policy.decide with the default config (comments
+    on, to render the escalation templates); raises if a decision or a threshold no longer matches. S01's title and
+    body come from sandbox/issues.json, our own authored fixture text."""
+    fx = need(expected_local, "fixtures", "expected_local.json")
+    texts = {f["key"]: f for f in need(issues, "fixtures", "sandbox/issues.json")}
+    raw = json.loads(json.dumps(config))
+    raw["behaviour"]["comment_on_escalate"] = True
+    cfg = validate(raw)
+    out = {}
+    for key, action in WORKED.items():
+        f = need(fx, key, "expected_local.json")
+        result = TriageResult(0, f["label"], f["probabilities"], f["answer_confidence"], 0.0, "", "")
+        d = policy.decide(result, cfg)
+        if (d.action, f["decision"]["action"], list(d.labels_to_add), f["threshold"]) != (
+                action, action, f["decision"]["labels_to_add"], cfg.thresholds[f["label"]]):
+            raise ValueError(f"sandbox/expected_local.json: {key} no longer shows the decision the docs describe")
+        k = key.lower()
+        out.update({f"{k}_{lab}": f4(f["probabilities"][lab]) for lab in LABELS})
+        out.update({f"{k}_label": f["label"], f"{k}_conf": f4(f["answer_confidence"]),
+                    f"{k}_tau": f"{f['threshold']:.4f}" if f["threshold"] < gating.NEVER else f"never ({f['threshold']})",
+                    f"{k}_title": need(texts, key, "sandbox/issues.json")["title"],
+                    f"{k}_outcome_label": d.labels_to_add[0], f"{k}_comment": d.comment or ""})
+    out["s01_body"] = texts["S01"]["body"]
+    runs = grab(r"- dry-run \((\d+) issue runs\): (\d+)/(\d+) ok", phase4_md, P4)
+    apply_ok = grab(r"- backfill apply: (\d+)/(\d+) ok", phase4_md, P4)
+    if len({runs.group(1), runs.group(2), runs.group(3), apply_ok.group(1), apply_ok.group(2)}) != 1:
+        raise ValueError(f"{P4}: the sandbox runs no longer all match expected_local.json")
+    out["sandbox_runs"] = runs.group(1)
+    return out
+
+
+def torch_pin(constraints):
+    return grab(r"^torch==([\w.]+)$", constraints, "constraints-linux.txt", re.MULTILINE).group(1)
+
+
+def short_results_table(test):
+    """README table: M1, B1 and the native zero-shot B2 setting, 512/192 (the deep dive shows both B2 settings)."""
+    t = "metrics_test.json"
+    native = "B2_512-192"
+    rows = [("**Our model (fine-tuned Laya)**", "M1"), ("TF-IDF + logistic regression", "B1"),
+            ("Zero-shot Laya (no fine-tuning)", native)]
+    out = ["| System | Cross-repo macro-F1 | Calibration error (ECE) |", "|---|---:|---:|"]
+    for name, key in rows:
+        m = need(test, f"systems.{key}.metrics", t)
+        f1 = f4(need(m, "cross_repo_macro_f1", t))
+        out.append(f"| {name} | {f'**{f1}**' if key == 'M1' else f1} | {f4(need(m, 'ece', t))} |")
+    return "\n".join(out)
+
+
 def build_values(test, val, config, refit, items, experiments_md, spec_md, phase2_md, template, action, posthoc,
-                 expected_local, phase3_md, phase4_md):
+                 expected_local, phase3_md, phase4_md, issues, constraints, snippets, classify_snippet=None,
+                 templates=None):
     t, v = "metrics_test.json", "metrics_val.json"
     F = mmc.facts(test, val, config, refit, items, experiments_md, spec_md)
     sysm = {s: need(test, f"systems.{s}.metrics", t) for s in ("M1", "B0", *(b for b, _ in mmc.BASELINES))}
@@ -326,6 +406,11 @@ def build_values(test, val, config, refit, items, experiments_md, spec_md, phase
         "laya_version": F["eval_versions"]["laya"], "laya_tag": laya_commit.group(1),
         "laya_commit": laya_commit.group(2), "nlbse_commit": nlbse_commit, "laya_citation": mmc.LAYA_CITATION,
         "nlbse_bibtex": mmc.NLBSE24_BIBTEX, "eval_python": F["eval_versions"]["python"], **rt,
+        "short_results_table": short_results_table(test), "torch_version": torch_pin(constraints),
+        "m1_acc_pct": f"{100 * m1['accuracy']:.0f}%", "target_pct": f"{100 * gating.TARGET_PRECISION:.0f}%",
+        "b2_native_xrepo": f4(sysm["B2_512-192"]["cross_repo_macro_f1"]),
+        "ls_remote": f"git ls-remote {mmc.GITHUB_URL} 'refs/tags/{tag}^{{}}'",
+        **worked_example(expected_local, issues, config, phase4_md), **snippets,
     }
 
 
@@ -340,33 +425,42 @@ def render(template, values):
     return re.sub(r"\{\{\s*(\w+)\s*\}\}", sub, template)
 
 
+def build_docs(**sources):
+    """{output path: text} for every generated document, all from one set of values."""
+    values = build_values(**sources)
+    return {OUTPUTS[t]: render(text, values) for t, text in sources["templates"].items()}
+
+
 def build_readme(**sources):
-    return render(sources["template"], build_values(**sources))
+    return build_docs(**sources)[README]
 
 
 def load_sources():
     s = mmc.load_sources()
     s["action"] = yaml.safe_load(EXTRA_SOURCES["action"].read_text())
-    for k in ("posthoc", "expected_local"):
+    for k in ("posthoc", "expected_local", "issues"):
         s[k] = json.loads(EXTRA_SOURCES[k].read_text())
-    for k in ("template", "phase3_md", "phase4_md"):
+    for k in ("template", "phase3_md", "phase4_md", "constraints"):
         s[k] = EXTRA_SOURCES[k].read_text()
+    s["templates"] = {t: t.read_text() for t in OUTPUTS}
+    s["snippets"] = {k: p.read_text().rstrip("\n") for k, p in SNIPPETS.items()}
     return s
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--check", action="store_true", help="exit 1 if README.md is out of date")
+    ap.add_argument("--check", action="store_true", help="exit 1 if any generated document is out of date")
     args = ap.parse_args(argv)
-    text = build_readme(**load_sources())
-    rel = README.relative_to(ROOT)
+    docs = build_docs(**load_sources())
     if args.check:
-        if not README.exists() or README.read_text() != text:
-            sys.exit(f"{rel} is out of date; run docs/make_readme.py")
-        print(f"{rel} is up to date")
+        stale = [str(p.relative_to(ROOT)) for p, text in docs.items() if not p.exists() or p.read_text() != text]
+        if stale:
+            sys.exit(f"out of date: {', '.join(stale)}; run docs/make_readme.py")
+        print(f"up to date: {', '.join(str(p.relative_to(ROOT)) for p in docs)}")
         return
-    README.write_text(text)
-    print(f"wrote {rel} ({len(text.splitlines())} lines)")
+    for path, text in docs.items():
+        path.write_text(text)
+        print(f"wrote {path.relative_to(ROOT)} ({len(text.splitlines())} lines)")
 
 
 if __name__ == "__main__":

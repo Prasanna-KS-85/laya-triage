@@ -8,7 +8,9 @@ Rules (each one is shown to fire on a synthetic bad file below):
 (c) every expression elsewhere (env, with, if, key, defaults, ...) references only allow-listed contexts
     (github.event_name is allowed: a fixed event-type string, not attacker-controlled);
 (d) every `uses:` is pinned to a 40-hex commit SHA with a `# v...` tag comment (local `./` actions excepted); the
-    only exemption is the documented placeholder SHA for Prasanna-KS-85/laya-triage in sandbox/workflow.example.yml;
+    only exemptions are the documented placeholder SHA for Prasanna-KS-85/laya-triage in sandbox/workflow.example.yml
+    and a version tag (`@vX.Y.Z`) for Prasanna-KS-85/laya-triage in docs/snippets/consumer-minimal.yml, the README's
+    copy-paste workflow (the README tells the reader how to pin the release commit);
 (e) every `run:` step of the composite action declares `shell: bash`;
 (f) every workflow declares top-level permissions limited to contents: read and issues: write.
 """
@@ -20,8 +22,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = [ROOT / "action.yml", *sorted((ROOT / ".github" / "workflows").glob("*.yml")),
-         ROOT / "sandbox" / "workflow.example.yml"]
+         ROOT / "sandbox" / "workflow.example.yml", ROOT / "docs" / "snippets" / "consumer-minimal.yml"]
 EXAMPLE = "sandbox/workflow.example.yml"
+MINIMAL = "docs/snippets/consumer-minimal.yml"
 SELF = "Prasanna-KS-85/laya-triage"
 PLACEHOLDER_SHA = "0" * 40
 
@@ -85,7 +88,8 @@ def check(text, name):
         m = USES.match(line)
         if m and not m.group(1).startswith("./"):
             ref, comment = m.group(1), m.group(2) or ""
-            exempt = name == EXAMPLE and ref == f"{SELF}@{PLACEHOLDER_SHA}" and comment.startswith("#")
+            exempt = (name == EXAMPLE and ref == f"{SELF}@{PLACEHOLDER_SHA}" and comment.startswith("#")) or (
+                name == MINIMAL and re.fullmatch(rf"{re.escape(SELF)}@v\d+\.\d+\.\d+", ref) is not None)
             placeholder = ref.endswith("@" + PLACEHOLDER_SHA)  # never a real pin outside the one exemption
             if not exempt and (placeholder or not PINNED.match(ref) or not re.match(r"#\s*v\d", comment)):
                 out.append(f"(d) {name}:{i}: uses not pinned to a commit SHA with a # vX comment: {ref}")
@@ -181,6 +185,18 @@ def test_placeholder_is_exempt_only_for_self_in_the_example():
     assert check(text, ".github/workflows/x.yml")[0].startswith("(d)")
     other = text.replace(SELF, "someone/else")
     assert check(other, EXAMPLE)[0].startswith("(d)")
+
+
+def test_version_tag_is_exempt_only_for_self_in_the_minimal_workflow():
+    line = f"      - uses: {SELF}@v1.0.0"
+    text = GOOD_WF.replace("      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1", line)
+    assert check(text, MINIMAL) == []
+    assert check(text, ".github/workflows/x.yml")[0].startswith("(d)")
+    assert check(text, EXAMPLE)[0].startswith("(d)")
+    assert check(text.replace(SELF, "someone/else"), MINIMAL)[0].startswith("(d)")
+    assert check(text.replace("@v1.0.0", "@main"), MINIMAL)[0].startswith("(d)")
+    assert check(text.replace("@v1.0.0", "@v1"), MINIMAL)[0].startswith("(d)")
+    assert check(GOOD_WF.replace("@3d3c42e5aac5ba805825da76410c181273ba90b1", "@v7.0.1"), MINIMAL)[0].startswith("(d)")
 
 
 def test_references_parser():

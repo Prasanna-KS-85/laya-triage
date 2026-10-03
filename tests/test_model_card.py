@@ -91,3 +91,12 @@ def test_b3_training_facts_come_from_phase2(sources):
         mc.b3_training(sources["phase2_md"].replace("were not read", "were read"))
     card = mc.build_card(**sources)
     assert "each on only that repository's 300 official-train rows" in " ".join(card.split())
+
+
+def test_card_shows_the_shared_package_snippet(sources):
+    card = mc.build_card(**sources)
+    snippet = (ROOT / "docs" / "snippets" / "classify_one.py").read_text().rstrip()
+    assert "### With the laya-triage package" in card
+    assert f"```python\n{snippet}\n```" in card
+    assert card.index("import laya\n") < card.index("### With the laya-triage package")  # the standalone block stays
+    assert "```mermaid" not in card
