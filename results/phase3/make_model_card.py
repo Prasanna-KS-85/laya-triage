@@ -430,6 +430,7 @@ switching the Action from dry-run to apply.
 - **Thresholds fitted on validation do not transfer exactly.** The `bug` threshold lost
   {100 * (bug_lb['precision'] - bug_test_prec):.1f} points of precision from validation to test.
 - **English only.** Trained and evaluated on English issues.
+- Exactly three classes (bug, feature, question); adding a class requires new labelled data, retraining and recalibrating.
 - **Latency was measured on a local CPU, not on a GitHub runner** ({F['hardware'].split(';')[0]}, model preloaded):
   p50 {tr_lat['p50']:.0f} ms and p95 {tr_lat['p95']:.0f} ms per issue at {tr_lat['torch_threads']} threads
   (test run); p50 {sa['2']['p50']:.0f} ms and p95 {sa['2']['p95']:.0f} ms at 2 threads (100 validation issues).

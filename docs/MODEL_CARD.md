@@ -227,6 +227,7 @@ switching the Action from dry-run to apply.
 - **Thresholds fitted on validation do not transfer exactly.** The `bug` threshold lost
   7.3 points of precision from validation to test.
 - **English only.** Trained and evaluated on English issues.
+- Exactly three classes (bug, feature, question); adding a class requires new labelled data, retraining and recalibrating.
 - **Latency was measured on a local CPU, not on a GitHub runner** (local Apple M4 Pro CPU, fp32, model preloaded):
   p50 178 ms and p95 436 ms per issue at 8 threads
   (test run); p50 288 ms and p95 690 ms at 2 threads (100 validation issues).

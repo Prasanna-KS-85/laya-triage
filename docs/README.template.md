@@ -27,6 +27,8 @@ flowchart LR
     A[Issue opened] --> B[Clean text] --> C[Laya model] --> D{Confidence gate} --> E[Apply label or escalate to a human]
 ```
 
+**Why Laya instead of a plain classifier?** A standard fine-tuned classifier would also work for three fixed classes, and we did not run a same-protocol head-to-head against one, so we make no accuracy claim. We chose Laya because the labels and their descriptions are part of the model's input and it answers typed questions (pick one, yes/no, rate) with probabilities in one CPU pass. That is meant to make follow-up questions such as "is the report missing reproduction steps?" a smaller step than building a second classifier ([more](docs/DEEP_DIVE.md#why-laya-instead-of-a-plain-classifier)).
+
 ## One worked example
 
 We wrote a set of sandbox issues about a fictional app (`sandbox/issues.json`). This is fixture S01, end to end:
@@ -78,6 +80,7 @@ Macro-F1: higher is better. Calibration error: lower means a stated probability 
 - **Balanced benchmark data** from {{n_repos}} large projects: precision on your repository will differ, so watch dry-run output first.
 - **Issue text can steer the label**, within bounds: the output is one of three labels, and no issue text is executed or repeated.
 - **Validation overstated test performance** (cross-repo macro-F1 {{val_xrepo}} on validation, {{test_xrepo}} on test).
+- **Exactly three classes.** Adding a class is not a setting: it needs new labelled data, retraining and recalibrating ([details](docs/DEEP_DIVE.md#extending-to-more-classes)).
 
 ## Choose how to use it
 
@@ -116,7 +119,7 @@ More in [docs/USING_THE_MODEL.md](docs/USING_THE_MODEL.md) (CPU-only install, wh
 
 ## Technical deep dive
 
-[Glossary](docs/DEEP_DIVE.md#glossary) · [Architecture](docs/DEEP_DIVE.md#architecture-at-a-glance) · [Laya internals](docs/DEEP_DIVE.md#how-it-works-laya-internals) · [Training and data](docs/DEEP_DIVE.md#training-and-data) · [Calibration](docs/DEEP_DIVE.md#calibration) · [Evaluation](docs/DEEP_DIVE.md#evaluation) · [Gating](docs/DEEP_DIVE.md#gating-and-the-missed-target) · [Runtime](docs/DEEP_DIVE.md#runtime-and-the-latency-probe) · [Deployment](docs/DEEP_DIVE.md#deployment-and-caches) · [Security](docs/DEEP_DIVE.md#security) · [Reproduce](docs/DEEP_DIVE.md#reproduce) · [Limitations](docs/DEEP_DIVE.md#limitations) · [Roadmap](docs/DEEP_DIVE.md#roadmap) · [How this was built](docs/DEEP_DIVE.md#how-this-was-built)
+[Glossary](docs/DEEP_DIVE.md#glossary) · [Architecture](docs/DEEP_DIVE.md#architecture-at-a-glance) · [Laya internals](docs/DEEP_DIVE.md#how-it-works-laya-internals) · [Why Laya](docs/DEEP_DIVE.md#why-laya-instead-of-a-plain-classifier) · [Training and data](docs/DEEP_DIVE.md#training-and-data) · [Calibration](docs/DEEP_DIVE.md#calibration) · [Evaluation](docs/DEEP_DIVE.md#evaluation) · [Gating](docs/DEEP_DIVE.md#gating-and-the-missed-target) · [Runtime](docs/DEEP_DIVE.md#runtime-and-the-latency-probe) · [Deployment](docs/DEEP_DIVE.md#deployment-and-caches) · [Security](docs/DEEP_DIVE.md#security) · [Reproduce](docs/DEEP_DIVE.md#reproduce) · [Limitations](docs/DEEP_DIVE.md#limitations) · [More classes](docs/DEEP_DIVE.md#extending-to-more-classes) · [Roadmap](docs/DEEP_DIVE.md#roadmap) · [How this was built](docs/DEEP_DIVE.md#how-this-was-built)
 
 | Path | What it holds |
 |---|---|

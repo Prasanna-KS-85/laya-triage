@@ -25,9 +25,10 @@ IDENTIFIERS = re.compile(
 DD, UA, UM = (ROOT / "docs" / f"{n}.md" for n in ("DEEP_DIVE", "USING_THE_ACTION", "USING_THE_MODEL"))
 README_HEADINGS = ["The 30-second explanation", "One worked example", "Results and limitations", "Choose how to use it",
                    "Technical deep dive"]
-DD_HEADINGS = ["Contents", "Glossary", "Architecture at a glance", "How it works (Laya internals)", "Training and data",
-               "Calibration", "Evaluation", "Gating and the missed target", "Runtime and the latency probe",
-               "Deployment and caches", "Security", "Reproduce", "Limitations", "Roadmap", "Credits and license",
+DD_HEADINGS = ["Contents", "Glossary", "Architecture at a glance", "How it works (Laya internals)",
+               "Why Laya instead of a plain classifier", "Training and data", "Calibration", "Evaluation",
+               "Gating and the missed target", "Runtime and the latency probe", "Deployment and caches", "Security",
+               "Reproduce", "Limitations", "Extending to more classes", "Roadmap", "Credits and license",
                "How this was built"]
 UA_HEADINGS = ["Add the workflow", "Permissions", "Create the labels", "Warm the caches once",
                "First run: stay in dry-run and read the job summaries", "Backfill", "Switch to apply",
@@ -335,3 +336,20 @@ def test_no_scored_once_wording(docs):
     for path in (*docs, mc.CARD):
         text = flat(docs.get(path) or path.read_text())
         assert "scored once" not in text and "scored exactly once" not in text, path.name
+
+
+def test_why_laya_and_more_classes(docs):
+    readme = flat(docs[mr.README])
+    assert "**Why Laya instead of a plain classifier?**" in readme
+    assert "we did not run a same-protocol head-to-head against one, so we make no accuracy claim" in readme
+    assert ("- **Exactly three classes.** Adding a class is not a setting: it needs new labelled data, retraining and "
+            "recalibrating ([details](docs/DEEP_DIVE.md#extending-to-more-classes)).") in docs[mr.README]
+    for anchor in ("why-laya-instead-of-a-plain-classifier", "extending-to-more-classes"):
+        assert f"(docs/DEEP_DIVE.md#{anchor})" in readme.split("## Technical deep dive", 1)[1]
+    dd = h2(docs[DD])
+    assert dd.index("How it works (Laya internals)") + 1 == dd.index("Why Laya instead of a plain classifier")
+    assert dd.index("Limitations") + 1 == dd.index("Extending to more classes")
+    assert "a same-protocol head-to-head against a plain fine-tuned encoder" in flat(docs[DD].split("\n## Roadmap\n")[1])
+    for path in (mr.README, DD):
+        text = flat(docs[path]).lower()
+        assert "more accurate" not in text and "better calibrated" not in text, path.name

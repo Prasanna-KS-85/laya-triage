@@ -9,6 +9,7 @@ The [README](../README.md) is the short version. This page holds the details: ho
 - [Glossary](#glossary)
 - [Architecture at a glance](#architecture-at-a-glance)
 - [How it works (Laya internals)](#how-it-works-laya-internals)
+- [Why Laya instead of a plain classifier](#why-laya-instead-of-a-plain-classifier)
 - [Training and data](#training-and-data)
 - [Calibration](#calibration)
 - [Evaluation](#evaluation)
@@ -18,6 +19,7 @@ The [README](../README.md) is the short version. This page holds the details: ho
 - [Security](#security)
 - [Reproduce](#reproduce)
 - [Limitations](#limitations)
+- [Extending to more classes](#extending-to-more-classes)
 - [Roadmap](#roadmap)
 - [Credits and license](#credits-and-license)
 - [How this was built](#how-this-was-built)
@@ -106,6 +108,44 @@ Maintainers spend time reading each new issue just to decide what kind it is. Ke
 3. **Calibrated probabilities.** One forward pass on CPU (fp32) gives a probability per label. Gating uses `answer_confidence`, the probability of the chosen label, never the entropy-based `confidence`.
 4. **Per-label thresholds.** Each label has its own threshold, fitted on validation data as the smallest value whose bootstrap lower bound of precision is at least {{target}}; {{never}} means the label is never auto-applied.
 5. **Apply or escalate.** At or above the threshold the label is applied; otherwise the escalation label is added. In dry-run, nothing changes and the decision goes to the job summary.
+
+## Why Laya instead of a plain classifier
+
+**What a plain classifier is.** The usual way to classify issues is to fine-tune an encoder with one output layer that has one position per label. That layer serves one task: a label such as `bug` is only a position in it, the model never reads the word or its description, and a different question needs a different output layer, usually a different model.
+
+**What Laya does differently.**
+
+- **Labels are input text.** The question, each option and each option's description are packed into the input together with the issue (step two in [How it works](#how-it-works-laya-internals)).
+- **Typed questions of three kinds:** pick one option (`choice`), yes/no (`noul`) and rate on a scale (`score`).
+- **Probabilities by design.** Fine-tuning rewards the probabilities with proper scoring rules and a soft cross-entropy term, and a temperature is fitted afterwards.
+- **One forward pass, no generated text.** Every answer comes from a single pass of the encoder, so the output is always one of the listed options and there is nothing to parse.
+
+**Why it was chosen here.**
+
+- **Gating needs per-label probabilities.** The Action compares a per-label probability with a per-label threshold. Any softmax classifier produces such numbers; what Laya adds is a training recipe built around them (proper scoring rules, then a fitted temperature). We measured no calibration advantage over the TF-IDF baseline (see the table below).
+- **CPU run, no server.** This holds for any small encoder, so it is a requirement of the project and not a reason to prefer Laya over a plain classifier; it is the reason for not using an LLM API (the first architecture decision record in the [specification](../PROJECT_SPEC.md)).
+- **The roadmap's follow-up questions.** The planned `needs_info` check ("is the report missing reproduction steps?") is a yes/no question of the same kind. The intent is that adding it is a new question and new training data, not a second classifier with its own output layer. This is a design intention, not something measured here.
+- **Exploring decision models.** One aim of the project was to try a decision model on a real, benchmarked task.
+
+**What the evidence says, and what it does not.**
+
+| Question | What we have | What it means |
+|---|---|---|
+| Accuracy | No same-protocol comparison against a plain fine-tuned encoder. Our baselines are TF-IDF and zero-shot Laya; the published NLBSE'24 results use another protocol, one classifier per repository ([Evaluation](#evaluation)). | We make no claim about accuracy against a plain fine-tuned classifier, in either direction. |
+| Calibration | The calibrated model's test ECE is comparable to the TF-IDF baseline's (ECE column in [Evaluation](#evaluation); [Calibration](#calibration)). | Usable for gating after a fitted temperature; no calibration advantage shown. |
+| Zero-shot | The base checkpoint without fine-tuning (B2) is weak, below TF-IDF. | Fine-tuning is needed; labels as input text did not remove that need. |
+| Speed | One encoder pass per issue, as with a plain classifier on the same encoder; the per-issue speed target was missed on a GitHub runner ([Runtime](#runtime-and-the-latency-probe)). | No special speed advantage. |
+
+**Costs of choosing Laya.**
+
+- **A newer ecosystem and a smaller community:** fewer examples, answered questions and ready-made tools than mainstream fine-tuning.
+- **Tooling that relies on pinned versions:** the package, the checkpoint and the training notebook are pinned to exact commits, and the notebook had to be adapted (see [Training and data](#training-and-data)).
+- **Known option-position bias:** the order of the options can shift predictions, so the order is frozen and identical in training and inference.
+- **A limited token budget when options are many:** options and their descriptions share the input with the issue text. With three options this does not matter; with many it would.
+
+**When a plain classifier is the better choice.** A fixed, small label set, no plan for follow-up questions, and a team that wants mainstream tooling and community support. For this project's three classes alone, a plain fine-tuned classifier would be a reasonable choice.
+
+**A fair test we have not run.** Fine-tune a plain encoder classifier on the same training rows, fit its temperature and thresholds on the same validation split, score it once on the same test split under a pre-declared protocol, and compare accuracy, calibration, precision at the gate and CPU time. It is listed in the [Roadmap](#roadmap).
 
 ## Training and data
 
@@ -235,11 +275,37 @@ Then `results/phase3/test_report.py` computes the metrics, the paired comparison
 - **Issues-triggered runs cannot write caches** (the cache write is refused for that token). Caches are saved by `schedule` and `workflow_dispatch` runs, which is what the `warm-cache` input and the example schedule are for. GitHub may evict a cache that is unused for a week, and the next run is then cold.
 - **Dataset license unspecified.** The upstream NLBSE'24 repository has an empty `LICENSE` file, so no license is granted for the data. This repository never contains the raw data; `training/fetch_data.py` downloads it from the upstream commit and verifies its SHA-256. See `data/DATA_CARD.md`.
 
+## Extending to more classes
+
+**What is supported today.** Exactly three single-label classes: {{labels_list}}. The configuration can rename the GitHub label used for each class and change each class's threshold ({{never}} turns auto-labelling off for that class). It cannot add a class: the configuration check rejects unknown keys, and the classes are fixed in code (`LABELS` in `src/laya_triage/questions.py`, from which the configuration schema is built, plus the fields of `LabelsConfig` in `src/laya_triage/config.py` and the `Label` type in `src/laya_triage/classifier.py`).
+
+**What adding a class takes.** Each step is new work, not a setting:
+
+- **Labelled data of your own.** NLBSE'24 has only these three classes, and `training/fetch_data.py` and `training/nlbse_data.py` read only its files. The new class needs labelled issues for training, validation and test.
+- **A new frozen question.** Add the option and its description to `ISSUE_TYPE_QUESTION` and `LABELS` in `src/laya_triage/questions.py`, and keep the copy in `training/make_items.py` identical (`tests/test_notebook_sync.py` checks it). Choose the option order once. The question is a frozen contract, so changing it means a spec update, a changelog entry, retraining and re-evaluating.
+- **Dataset build and splits.** Rebuild the splits and manifests with `training/build_dataset.py` (stratified by repository and label) and the training items with `training/make_items.py`, which rejects rows whose options do not match `LABELS`.
+- **Fine-tune.** Regenerate the Kaggle notebook with `training/build_notebook.py`, train, and publish a new model revision.
+- **A fresh temperature,** refitted on validation (`results/phase3/refit_temperature.py`).
+- **Thresholds from validation** for every class, by the same bootstrap rule (`eval/gating.py`).
+- **Evaluation under a new pre-declared protocol.** The NLBSE'24 test split cannot score a fourth class, so declare a new test set and protocol before the run and re-run the baselines (`eval/baselines.py`, `eval/run_eval.py`). The results will not be comparable with the numbers on this page.
+- **Config, tests, release.** Add the class under `labels` and `gating.thresholds` in `config/triage.default.yml`, pin the new `model.revision`, update the tests that assume three labels, regenerate the docs, and cut a release.
+
+**Cautions.**
+
+- **Option wording and order are part of the model.** Changing either changes the model, so earlier temperatures, thresholds and results no longer apply.
+- **Many options shrink each option's description.** Options share the token budget with the issue text, and [Laya's own documentation]({{laya_url}}) reports weaker accuracy with very many options.
+- **Every threshold must be refitted.** A new option changes every probability, not only its own.
+
+**Not multi-label.** A `choice` question picks exactly one option. "Also needs more information" is not a fourth class; it is a separate yes/no question, as planned.
+
+**Where this goes next.** The `needs_info` question (v1.1) and a `documentation` class (v2.0, stretch) are in the [Roadmap](#roadmap).
+
 ## Roadmap
 
 - **v1.1:** a language guard that escalates non-English issues instead of classifying them; the `needs_info` flag from the spec's release map; a length-matched latency probe; a hash-pinned dependency lock; an optional formatting pass that leaves the frozen files alone.
 - **v1.2:** ONNX INT8 export and `model.backend: onnx`, aimed at the NFR-1 target.
 - **v2.0 (stretch, not committed):** priority scoring, duplicate suggestions and a `documentation` class.
+- **Evaluation (not tied to a release):** a same-protocol head-to-head against a plain fine-tuned encoder (see [A fair test we have not run](#why-laya-instead-of-a-plain-classifier)).
 
 ## Credits and license
 
