@@ -9,13 +9,13 @@ facts:
     source: LICENSE
     quote: "Copyright 2026 Prasannakumar KS"
   - key: spec_updated
-    value: "2026-10-04"
+    value: "2026-10-05"
     source: PROJECT_SPEC.md
-    quote: "**Last updated:** 2026-10-04"
+    quote: "**Last updated:** 2026-10-05"
   - key: spec_version
-    value: v1.0.25
+    value: v1.0.26
     source: PROJECT_SPEC.md
-    quote: "**Status:** v1.0.25 draft (source of truth)"
+    quote: "**Status:** v1.0.26 draft (source of truth)"
 
   # Laya background (PROJECT_SPEC.md §2, §5)
   - key: llm_bot_latency

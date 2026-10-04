@@ -103,6 +103,12 @@ def grab(pattern, text, src, flags=0):
     return m
 
 
+def report_pdf_name():
+    """File name of the report PDF, read from docs/report/make_report.py (which imports this module, so no import)."""
+    src = DOCS / "report" / "make_report.py"
+    return grab(r'^PDF = BUILD / "([^"]+\.pdf)"', src.read_text(), str(src), re.MULTILINE).group(1)
+
+
 def versus(gap):
     """'2.5 points below' / '1.0 points above' for a difference in F1 (fractions)."""
     return f"{abs(100 * gap):.1f} points {'above' if gap > 0 else 'below'}"
@@ -378,7 +384,7 @@ def build_values(test, val, config, refit, items, experiments_md, spec_md, phase
     return {
         "github_url": mmc.GITHUB_URL, "laya_url": "https://github.com/NandhaKishorM/laya",
         "hf_url": f"https://huggingface.co/{F['repo']}", "model_repo": F["repo"], "revision": F["revision"],
-        "tag": tag, "consumer_workflow": block, "action_inputs_table": action_inputs_table(action),
+        "tag": tag, "report_pdf_name": report_pdf_name(), "consumer_workflow": block, "action_inputs_table": action_inputs_table(action),
         "config_table": config_table(config), "escalate_label": need(labels, "escalate", CFG),
         "label_cmds": "\n".join(f'gh label create "{labels[k]}"' for k in (*LABELS, "escalate")),
         "mode": need(config, "behaviour.mode", CFG),

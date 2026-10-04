@@ -125,6 +125,7 @@ More in [docs/USING_THE_MODEL.md](docs/USING_THE_MODEL.md) (CPU-only install, wh
 |---|---|
 | [`PROJECT_SPEC.md`](PROJECT_SPEC.md) | the single source of truth: requirements, decisions, gates, changelog |
 | [`docs/`](docs/) | the deep dive, the two usage guides, the model card, their generator and templates, the diagrams |
+| [`docs/report/`](docs/report/) | the technical report: generator, chapter templates, source text and tests |
 | [`src/laya_triage/`](src/laya_triage/) | the run-time package |
 | [`action.yml`](action.yml), [`constraints-linux.txt`](constraints-linux.txt) | the composite Action and its pinned dependency lock |
 | [`config/triage.default.yml`](config/triage.default.yml) | model revision, thresholds, labels, defaults |
@@ -135,5 +136,7 @@ More in [docs/USING_THE_MODEL.md](docs/USING_THE_MODEL.md) (CPU-only install, wh
 | [`tests/`](tests/) | unit tests, and the slow model tests that run offline |
 
 Questions or feedback: open an issue in this repository.
+
+**Full technical report.** The complete write-up, from the problem and the data to the results, the limitations and future work: [PDF, attached to the release]({{github_url}}/releases/download/{{tag}}/{{report_pdf_name}}) or [readable on GitHub](docs/report/REPORT.md).
 
 Laya is by Convai Innovations / NandhaKishorM (Apache-2.0); the benchmark is NLBSE'24. This project is Apache-2.0 ([`LICENSE`](LICENSE)); credits and citations are in [the deep dive](docs/DEEP_DIVE.md#credits-and-license).

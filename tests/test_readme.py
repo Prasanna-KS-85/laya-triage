@@ -353,3 +353,25 @@ def test_why_laya_and_more_classes(docs):
     for path in (mr.README, DD):
         text = flat(docs[path]).lower()
         assert "more accurate" not in text and "better calibrated" not in text, path.name
+
+
+def test_readme_links_the_technical_report(readme):
+    blocks = [b for b in readme.strip().split("\n\n") if b.strip()]
+    para, credits = blocks[-2], blocks[-1]
+    assert credits.startswith("Laya is by Convai Innovations")
+    assert para.startswith("**Full technical report.** The complete write-up, from the problem and the data to the "
+                           "results, the limitations and future work: [PDF, attached to the release](")
+    assert para.endswith("or [readable on GitHub](docs/report/REPORT.md).")
+    tag = re.search(r"laya-triage@(v\d+\.\d+\.\d+)", readme).group(1)  # the quick-start workflow's release tag
+    pdf = re.search(r"\[PDF, attached to the release\]\(([^)]+)\)", para).group(1)
+    report_src = (ROOT / "docs" / "report" / "make_report.py").read_text()
+    name = re.search(r'^PDF = BUILD / "([^"]+)"', report_src, re.MULTILINE).group(1)
+    assert pdf == f"{mr.mmc.GITHUB_URL}/releases/download/{tag}/{name}"
+    assert (ROOT / "docs" / "report" / "REPORT.md").is_file()
+
+
+def test_repository_map_has_the_report_row(readme):
+    row = ("| [`docs/report/`](docs/report/) | the technical report: generator, chapter templates, source text "
+           "and tests |")
+    assert row in readme.splitlines()
+    assert (ROOT / "docs" / "report").is_dir()

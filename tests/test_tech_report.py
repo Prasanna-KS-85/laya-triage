@@ -349,3 +349,12 @@ def test_pdf_renders(tmp_path, report):
     for fid in re.findall(r'<figure id="([^"]+)"', report):
         assert fid in pages, fid
     assert len(doc.pages) >= starts[-1]
+
+
+def test_report_images_resolve_relative_to_the_report_folder():
+    text = mrp.REPORT.read_text()
+    srcs = re.findall(r'<img\b[^>]*\bsrc="([^"]+)"', text) + re.findall(r"(?<!`)!\[[^\]]*\]\(([^)\s]+)\)", prose(text))
+    assert srcs
+    for src in srcs:
+        assert not src.startswith(("http", "/")), src
+        assert (mrp.REPORT_DIR / src).resolve().is_file(), src
