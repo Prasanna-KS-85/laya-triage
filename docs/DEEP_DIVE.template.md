@@ -163,7 +163,7 @@ The training rows are near-balanced ({{train_counts}}). The data card, including
 
 ## Evaluation
 
-Where it stands, in one paragraph: on the NLBSE'24 test split the model reaches cross-repo macro-F1 **{{test_xrepo}}** (the TF-IDF baseline reaches {{b1_xrepo}}, the published SetFit baseline {{setfit_xrepo}}). The confidence gate is the weak part. With the shipped thresholds it auto-labels {{gate_cov_pct}} of test issues, only `bug`, at precision {{gate_prec_pct}}, so it **{{target_status}} the {{target}} precision target**. Read [Gating](#gating-and-the-missed-target) and [Limitations](#limitations), and watch dry-run output on your own repository, before you switch to `apply`.
+Where it stands, in one paragraph: on the NLBSE'24 test split the model reaches cross-repo macro-F1 **{{test_xrepo}}** (the TF-IDF baseline reaches {{b1_xrepo}}, the published SetFit baseline {{setfit_xrepo}} under a different protocol, one classifier per repository). The confidence gate is the weak part. With the shipped thresholds it auto-labels {{gate_cov_pct}} of test issues, only `bug`, at precision {{gate_prec_pct}}, so it **{{target_status}} the {{target}} precision target**. Read [Gating](#gating-and-the-missed-target) and [Limitations](#limitations), and watch dry-run output on your own repository, before you switch to `apply`.
 
 Test split of the NLBSE'24 issue report classification benchmark: {{n_test}} issues, {{per_cell}} per class in each of {{n_repos}} repositories, each judged by a protocol declared in advance. That evaluation was run once, after the thresholds were frozen. Exploratory analyses run later reused the test predictions and are labelled post-hoc (`results/phase3.md`). The headline metric is **cross-repo macro-F1**, the mean of the per-repository macro-F1 scores, as in the competition. Every number below is generated from the files under `results/` (mainly `results/phase3/test_R1b/metrics_test.json`).
 
@@ -191,6 +191,8 @@ Test split of the NLBSE'24 issue report classification benchmark: {{n_test}} iss
 | **all** | | | {{gate_applied}} of {{gate_n}} | **{{gate_cov}}** | **{{gate_prec}}** |
 
 **The {{target}} precision target was {{target_status}} on test.** On validation the `bug` threshold had precision {{bug_val_prec}} (bootstrap lower bound {{bug_val_lb}}, {{bug_val_n}} issues, in-sample); on test the same threshold gave {{bug_test_prec}}, {{bug_prec_loss}} points lower. `feature` and `question` never reached the lower bound on validation, so they are always escalated: on test the target was met for {{met_k}} of {{n_labels}} labels (on validation {{val_bound_labels}} a {{target}} bootstrap lower bound). For comparison, the point-estimate thresholds from validation would auto-label {{point_cov}} of test issues at precision {{point_prec}}, and the TF-IDF baseline, gated with its own validation-fitted thresholds, auto-labelled {{b1_gate_cov}} of test issues at precision {{b1_gate_prec}}.
+
+{{coincidence_note}}
 
 ![Coverage against precision of M1 on the test split](../{{figure_path}})
 

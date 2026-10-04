@@ -1,0 +1,7 @@
+# Conclusion
+
+Laya Triage shows that a fine-tuned decision model can triage GitHub issues inside a standard Action, without a server or a paid API, and that its probabilities are usable for a confidence gate. On the NLBSE'24 test split the fine-tuned model reached a cross-repo macro-F1 of {{test_xrepo}}, ahead of the TF-IDF baseline ({{b1_xrepo}}) and of the same checkpoint without fine-tuning ({{b2_native_xrepo}}) with paired intervals that exclude zero, and temperature scaling brought its test ECE to {{m1_ece}} without changing a label. The Action ran end to end on a sandbox repository and agreed with the local production path on every fixture.
+
+The release also missed two of its targets, and says so. The auto-applied `bug` labels reached a precision of {{gate_prec}} on test, below the target of {{target}}, and `feature` and `question` are never applied automatically, so the gate labels only {{gate_cov_pct}} of test issues by itself, which is its coverage. The per-issue latency on a {{runner_cpus}}-CPU runner, measured by the latency probe with the model loaded, was {{probe_p95}} at p95, above the target. Both misses are documented with their analysis, and the second has a concrete plan.
+
+The most useful outcome may be the process: a specification with gates, frozen contracts, a pre-declared single test run, post-hoc analyses that are labelled as such, and documents generated from committed results. They make every number in this report traceable, including the ones that fell short.

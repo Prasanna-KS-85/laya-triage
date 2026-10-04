@@ -1,0 +1,238 @@
+# Values the report uses that exist only in prose (PROJECT_SPEC.md §16 rule 11). Each entry names the committed file
+# it comes from and the exact text it appears in (compared with whitespace collapsed, because markdown wraps lines).
+# tests/test_tech_report.py fails if a source no longer contains its quote, if a value is not inside its quote, or if a
+# key is unused. Values read from JSON, YAML, CSV or markdown tables are not listed here: make_report.py reads them.
+facts:
+  # Title page
+  - key: author
+    value: Prasannakumar KS
+    source: LICENSE
+    quote: "Copyright 2026 Prasannakumar KS"
+  - key: spec_updated
+    value: "2026-10-04"
+    source: PROJECT_SPEC.md
+    quote: "**Last updated:** 2026-10-04"
+  - key: spec_version
+    value: v1.0.25
+    source: PROJECT_SPEC.md
+    quote: "**Status:** v1.0.25 draft (source of truth)"
+
+  # Laya background (PROJECT_SPEC.md §2, §5)
+  - key: llm_bot_latency
+    value: hundreds of ms to seconds per call
+    source: PROJECT_SPEC.md
+    quote: "They are slow (hundreds of ms to seconds per call), cost money per call"
+  - key: encoder_size
+    value: about 421M parameters including the head
+    source: PROJECT_SPEC.md
+    quote: "uses ModernBERT-large, about 421M parameters including the head"
+  - key: encoder_params_exact
+    value: "421,293,827"
+    source: results/phase0.md
+    quote: "| Parameters | 421,293,827 | 421,293,827 |"
+  - key: head_layers
+    value: 2-layer
+    source: PROJECT_SPEC.md
+    quote: "A 2-layer transformer runs on top of the encoder."
+  - key: rlcd_scores
+    value: spherical and ranked-probability scores
+    source: PROJECT_SPEC.md
+    quote: "rewarded by strictly proper scoring rules (spherical and ranked-probability scores);"
+  - key: minimal_download
+    value: "846,201,702 bytes"
+    source: PROJECT_SPEC.md
+    quote: "minimal file set 846,201,702 bytes incl. the cached file listing"
+  - key: full_snapshot
+    value: 2.37 GB
+    source: PROJECT_SPEC.md
+    quote: "full snapshot 2.37 GB"
+
+  # Phase 0 and training
+  - key: wording_rule
+    value: ">=5 macro-F1 points at both 512/192 and 1024/256"
+    source: PROJECT_SPEC.md
+    quote: "Frozen after the Phase 0 comparison (rule: >=5 macro-F1 points at both 512/192 and 1024/256)"
+  - key: calib_rule
+    value: "min(400, n // 10)"
+    source: PROJECT_SPEC.md
+    quote: "119 calibration items (upstream rule `min(400, n // 10)`, upstream seed 20260922, unchanged)"
+  - key: tmax_upstream
+    value: "64"
+    source: PROJECT_SPEC.md
+    quote: "Upstream's floor division gives 64, so its cosine LR rises slightly over the last 4 steps (negligible)."
+  - key: thread_determinism
+    value: 100/100 identical
+    source: results/phase0.md
+    quote: "Changing the thread count did not change any prediction (100/100 identical)"
+
+  # Data (data/DATA_CARD.md)
+  - key: licence_empty
+    value: 0 bytes at the pinned commit
+    source: data/DATA_CARD.md
+    quote: "the upstream `LICENSE` file is empty (0 bytes at the pinned commit), so no license is granted."
+  - key: review_outcome
+    value: 24 ok / 4 doubtful / 2 wrong
+    source: data/DATA_CARD.md
+    quote: "Labels: 24 ok / 4 doubtful / 2 wrong."
+  - key: review_cleaning
+    value: 30 ok / 0 harmed
+    source: data/DATA_CARD.md
+    quote: "Cleaning: 30 ok / 0 harmed."
+  - key: review_noise
+    value: about 7% clearly wrong and 20% wrong-or-doubtful
+    source: data/DATA_CARD.md
+    quote: "Label noise estimate: about 7% clearly wrong and 20% wrong-or-doubtful (n=30, wide uncertainty)."
+  - key: review_template
+    value: 5 of the 11 question rows
+    source: data/DATA_CARD.md
+    quote: "in 5 of the 11 question rows (train-0237, 0260, 0285, 0864, 0875) the author's own template choice (bug or feature) differs from the gold label"
+  - key: review_window
+    value: first 600 characters
+    source: data/DATA_CARD.md
+    quote: "using its title and the first 600 characters of the cleaned body"
+  - key: conflicting_pair
+    value: conflicting labels
+    source: results/phase0.md
+    quote: "3 pairs appear in both train and test; pair 3 has **conflicting labels**."
+  - key: empty_bodies
+    value: 2 official test bodies are empty in the raw data; 4 more bodies
+    source: data/DATA_CARD.md
+    quote: "2 official test bodies are empty in the raw data; 4 more bodies (vscode feature requests made only of template HTML comments) become empty after cleaning."
+
+  # Results and criteria (PROJECT_SPEC.md §6.3, results/phase3.md)
+  - key: crit4_second_clause
+    value: which satisfies the criterion's second clause
+    source: PROJECT_SPEC.md
+    quote: "documented with the v1.2 ONNX plan, which satisfies the criterion's second clause."
+  - key: crit5_status
+    value: MET
+    source: PROJECT_SPEC.md
+    quote: "**Result (Phase 4): MET.** Sandbox `Prasanna-KS-85/laya-triage-sandbox`"
+  - key: parser_bug
+    value: three extra B3 rows
+    source: results/phase3.md
+    quote: "The first report run picked up three extra B3 rows from the per-repo table in `phase2.md` (a parser bug)."
+  - key: anonymous_access
+    value: HTTP 200
+    source: results/phase3.md
+    quote: "anonymous access to the pinned revision verified: HTTP 200 on config, tokenizer and weights"
+
+  # Action, lock, caches and sandbox (PROJECT_SPEC.md §7.7, results/phase4.md)
+  - key: lock_run
+    value: "37009763300"
+    source: PROJECT_SPEC.md
+    quote: "The pins are the Linux lock generated from CI run 37009763300 (`pip freeze --all`, Ubuntu 24.04.5, Python 3.11.16)."
+  - key: lock_os
+    value: Ubuntu 24.04.5, Python 3.11.16
+    source: PROJECT_SPEC.md
+    quote: "The pins are the Linux lock generated from CI run 37009763300 (`pip freeze --all`, Ubuntu 24.04.5, Python 3.11.16)."
+  - key: cache_sizes
+    value: Model cache (Hugging Face) 739.96 MiB, dependency venv 256.18 MiB
+    source: results/phase4.md
+    quote: "**Cache finding.** Model cache (Hugging Face) 739.96 MiB, dependency venv 256.18 MiB."
+  - key: cache_denied
+    value: "cache write denied: token has no writable scopes"
+    source: results/phase4.md
+    quote: "Issues-triggered runs restore both caches but cannot save them (`cache write denied: token has no writable scopes`;"
+  - key: schedule_not_observed
+    value: "not yet observed: a run started by the `schedule` trigger"
+    source: results/phase4.md
+    quote: "not yet observed: a run started by the `schedule` trigger."
+  - key: sandbox_action_commit
+    value: 13633af
+    source: PROJECT_SPEC.md
+    quote: "Sandbox `Prasanna-KS-85/laya-triage-sandbox`, action commit `13633af`"
+  - key: compare_tolerance
+    value: 1e-3
+    source: results/phase4.md
+    quote: "**compare.py** (runner JSONL logs vs `sandbox/expected_local.json`, tolerance 1e-3):"
+  - key: compare_dry_run
+    value: "22/22 ok; max |Δp| 1e-4 (S19), 0.0 for every other fixture; 0 borderline"
+    source: results/phase4.md
+    quote: "dry-run (22 issue runs): 22/22 ok; max |Δp| 1e-4 (S19), 0.0 for every other fixture; 0 borderline."
+  - key: compare_apply
+    value: "22/22 ok"
+    source: results/phase4.md
+    quote: "backfill apply: 22/22 ok."
+  - key: compare_idempotent
+    value: 22/22 ok (every record a skip, "already labeled" or "already escalated")
+    source: results/phase4.md
+    quote: "idempotent re-run: 22/22 ok (every record a skip, \"already labeled\" or \"already escalated\")."
+  - key: pr_excluded
+    value: "PR #23 (opened before the backfill): no record, no labels"
+    source: results/phase4.md
+    quote: "PR #23 (opened before the backfill): no record, no labels."
+  - key: parity_val
+    value: labels 30/30, max |Δp| 0.0
+    source: results/phase4.md
+    quote: "vs `results/phase3/val_R1b/predictions_val_M1_R1b.csv`: labels 30/30, max |Δp| 0.0, for both `classify` and `classify_batch`."
+  - key: probe_threads_note
+    value: likely one physical core with SMT
+    source: results/phase4.md
+    quote: "`torch.get_num_threads()` 1 (2 logical CPUs, likely one physical core with SMT)"
+  - key: ci_gate_run
+    value: "37058459160"
+    source: results/phase4.md
+    quote: "CI green: run 37058459160 passed on commit `88ad0bf3eda4944b5cb243b3da599cc66f404652`."
+  - key: format_note
+    value: 64 of 77 files
+    source: results/phase4.md
+    quote: "`ruff check` is clean, but `ruff format --check .` would reformat 64 of 77 files"
+
+  # Release (results/phase5.md)
+  - key: release_ci_run
+    value: "37148936242"
+    source: results/phase5.md
+    quote: "CI run 37148936242 succeeded on commit b3f19f436becbd9e742d7a4bbc9ca9695a8c3952."
+  - key: release_commit
+    value: b3f19f436becbd9e742d7a4bbc9ca9695a8c3952
+    source: results/phase5.md
+    quote: "Annotated tag v1.0.0 points to b3f19f436becbd9e742d7a4bbc9ca9695a8c3952 (verified with git ls-remote on the peeled ref)"
+  - key: sandbox_repin
+    value: sandbox commit 1bebfc3
+    source: results/phase5.md
+    quote: "The sandbox was re-pinned to b3f19f436becbd9e742d7a4bbc9ca9695a8c3952 (sandbox commit 1bebfc3)."
+  - key: smoke_run
+    value: "37149435952"
+    source: results/phase5.md
+    quote: "Smoke run 37149435952 (issues event; issue #27 opened by hand)"
+  - key: smoke_issue
+    value: "#27"
+    source: results/phase5.md
+    quote: "Smoke run 37149435952 (issues event; issue #27 opened by hand)"
+  - key: smoke_job
+    value: 2026-10-03T19:51:58Z to 2026-10-03T19:52:43Z (45 s)
+    source: results/phase5.md
+    quote: "conclusion success, job 2026-10-03T19:51:58Z to 2026-10-03T19:52:43Z (45 s); both caches restored"
+  - key: smoke_label
+    value: "type: bug"
+    source: results/phase5.md
+    quote: "issue #27 labelled type: bug."
+  - key: audit_tokens
+    value: 0 matches
+    source: results/phase5.md
+    quote: "token-pattern scan of the full history, 0 matches;"
+  - key: audit_files
+    value: 160 tracked files
+    source: results/phase5.md
+    quote: "no secret-like file names; 160 tracked files;"
+  - key: audit_titles
+    value: a scan of 255 history blobs found 0 NLBSE issue titles (titles of 25 or more characters)
+    source: results/phase5.md
+    quote: "a scan of 255 history blobs found 0 NLBSE issue titles (titles of 25 or more characters)."
+  - key: history_images
+    value: docs/architecture.png (4,838,462 bytes) and docs/banner_image.png (1,573,017 bytes)
+    source: results/phase5.md
+    quote: "Earlier versions of docs/architecture.png (4,838,462 bytes) and docs/banner_image.png (1,573,017 bytes) remain in git history"
+  - key: public_date
+    value: 2026-10-03
+    source: results/phase5.md
+    quote: "The repository was made public on 2026-10-03 (anonymous HTTP 200)"
+  - key: release_url
+    value: https://github.com/Prasanna-KS-85/laya-triage/releases/tag/v1.0.0
+    source: results/phase5.md
+    quote: "GitHub Release v1.0.0: https://github.com/Prasanna-KS-85/laya-triage/releases/tag/v1.0.0"
+  - key: pending
+    value: Hugging Face model-card re-upload, Path B clean-environment check, demo GIF, badges, an independent install test by another person
+    source: results/phase5.md
+    quote: "Still pending at the time of writing: Hugging Face model-card re-upload, Path B clean-environment check, demo GIF, badges, an independent install test by another person."

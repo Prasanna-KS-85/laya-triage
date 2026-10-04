@@ -1,0 +1,52 @@
+# Snapshot of git metadata: local tags, peeled commit and creator date, written once by
+# `docs/report/make_report.py --snapshot-tags` (read-only git for-each-ref). tests/test_tech_report.py checks it
+# against local git when tags are present (skipped in CI, where the checkout has no tags).
+tags:
+- tag: phase0-complete
+  annotated: false
+  commit: 8c0e72c1195768c1bb84da2ff69f3f2617c00fd1
+  date: '2026-10-02T03:00:31+05:30'
+- tag: phase1-complete
+  annotated: false
+  commit: b41b8911276f7e0af82078c975a1aa245856ab2f
+  date: '2026-10-02T10:28:04+05:30'
+- tag: phase2-val-frozen
+  annotated: false
+  commit: e33a1fcca5f334eaf80030b4931f13e31b7df5b1
+  date: '2026-10-02T10:44:20+05:30'
+- tag: phase2-complete
+  annotated: false
+  commit: 0f7ecad00f88ffc8cf5d9f980ca71e2654ed613e
+  date: '2026-10-02T11:02:33+05:30'
+- tag: phase3-prefreeze
+  annotated: false
+  commit: d6bb242de2e5f518e24f7a8c3918934a72faa326
+  date: '2026-10-02T16:17:33+05:30'
+- tag: phase3-test-run
+  annotated: false
+  commit: e1649cb119c9eb7d392f7d3a3d4917b56201f741
+  date: '2026-10-02T16:41:17+05:30'
+- tag: phase3-complete
+  annotated: false
+  commit: c089e2a40bb7fe2f88b7f15f65f262ec7661e7cf
+  date: '2026-10-02T17:12:00+05:30'
+- tag: phase4a-complete
+  annotated: false
+  commit: d156230a4e8da5daab845401bbd00147bce0b36c
+  date: '2026-10-02T17:56:35+05:30'
+- tag: phase4b-build
+  annotated: false
+  commit: f8267ca54a3b02f3fe88fc1566e15eb444606977
+  date: '2026-10-02T18:26:10+05:30'
+- tag: v1.0.0-rc1
+  annotated: true
+  commit: 88ad0bf3eda4944b5cb243b3da599cc66f404652
+  date: '2026-10-03T01:43:36+05:30'
+- tag: phase4-complete
+  annotated: false
+  commit: 5b9a5d74c03f38eb5bc9fd0b12b0894333f33136
+  date: '2026-10-03T01:55:12+05:30'
+- tag: v1.0.0
+  annotated: true
+  commit: b3f19f436becbd9e742d7a4bbc9ca9695a8c3952
+  date: '2026-10-04T01:31:12+05:30'

@@ -266,6 +266,17 @@ def torch_pin(constraints):
     return grab(r"^torch==([\w.]+)$", constraints, "constraints-linux.txt", re.MULTILINE).group(1)
 
 
+def coincidence_note(point_coverage, shipped_precision):
+    """A warning, emitted only while the coverage at the point-estimate thresholds and the precision at the shipped
+    thresholds round to the same four decimals (they are different quantities)."""
+    if f4(point_coverage) != f4(shipped_precision):
+        return ""
+    return (f"A coincidence of the numbers needs a warning: the coverage of the τ_point rule ({f4(point_coverage)}) "
+            f"equals the precision of the shipped thresholds ({f4(shipped_precision)}) to four decimals. They are "
+            "different quantities: the first is the share of all test issues the τ_point rule would label, the second "
+            "the share of correct labels among the issues the shipped thresholds did label.")
+
+
 def short_results_table(test):
     """README table: M1, B1 and the native zero-shot B2 setting, 512/192 (the deep dive shows both B2 settings)."""
     t = "metrics_test.json"
@@ -323,7 +334,7 @@ def build_values(test, val, config, refit, items, experiments_md, spec_md, phase
     results = [row("**M1 (this model)**", m1), row("B0 majority class", sysm["B0"], ece=False),
                *(row(name, sysm[b]) for b, name in mmc.BASELINES)]
     for r in b3:
-        results.append(f"| B3 {r['system'].split()[1]} (NLBSE'24, published) | {f4(need(r, 'cross_repo_macro_f1', t))} | " +
+        results.append(f"| B3 {r['system'].split()[1]} (NLBSE'24, published, other protocol) | {f4(need(r, 'cross_repo_macro_f1', t))} | " +
                        " | ".join(f"{f4(need(r, k, t))} [c]" for k in ("pooled_macro_f1", "accuracy", "f1_bug", "f1_feature",
                                                                         "f1_question")) + " | — |")
     paired_rows = []
@@ -397,6 +408,7 @@ def build_values(test, val, config, refit, items, experiments_md, spec_md, phase
         "bug_applied": bug_gate["applied"], "met_k": met3, "b3_rows_per_clf": b3t["rows_per_classifier"], "auto_label": reachable[0],
         "val_bound_labels": (f"only {val_ok[0]} had" if len(val_ok) == 1 else
                              (f"{', '.join(val_ok)} had" if val_ok else "no label had")), "point_cov": f4(gate_point["coverage"]),
+        "coincidence_note": coincidence_note(gate_point["coverage"], gate["precision"]),
         "point_prec": f4(gate_point["precision"]), "b1_gate_cov": f4(b1_gate["coverage"]), "b1_gate_prec": f4(b1_gate["precision"]),
         "b1_gate_applied": b1_gate["applied"], "figure_path": fig, "val_xrepo": f4(need(val, "systems.M1.metrics.cross_repo_macro_f1", v)),
         "near_cut": cut, "near_val_share": pct(nd["summary"]["val"][f"share_above_{cut}"]),

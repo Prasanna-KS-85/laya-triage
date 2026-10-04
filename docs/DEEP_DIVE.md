@@ -164,7 +164,7 @@ The training rows are near-balanced (bug 398, feature 398, question 400). The da
 
 ## Evaluation
 
-Where it stands, in one paragraph: on the NLBSE'24 test split the model reaches cross-repo macro-F1 **0.8020** (the TF-IDF baseline reaches 0.7655, the published SetFit baseline 0.8270). The confidence gate is the weak part. With the shipped thresholds it auto-labels 26.1% of test issues, only `bug`, at precision 87.5%, so it **missed the 0.90 precision target**. Read [Gating](#gating-and-the-missed-target) and [Limitations](#limitations), and watch dry-run output on your own repository, before you switch to `apply`.
+Where it stands, in one paragraph: on the NLBSE'24 test split the model reaches cross-repo macro-F1 **0.8020** (the TF-IDF baseline reaches 0.7655, the published SetFit baseline 0.8270 under a different protocol, one classifier per repository). The confidence gate is the weak part. With the shipped thresholds it auto-labels 26.1% of test issues, only `bug`, at precision 87.5%, so it **missed the 0.90 precision target**. Read [Gating](#gating-and-the-missed-target) and [Limitations](#limitations), and watch dry-run output on your own repository, before you switch to `apply`.
 
 Test split of the NLBSE'24 issue report classification benchmark: 1,500 issues, 100 per class in each of 5 repositories, each judged by a protocol declared in advance. That evaluation was run once, after the thresholds were frozen. Exploratory analyses run later reused the test predictions and are labelled post-hoc (`results/phase3.md`). The headline metric is **cross-repo macro-F1**, the mean of the per-repository macro-F1 scores, as in the competition. Every number below is generated from the files under `results/` (mainly `results/phase3/test_R1b/metrics_test.json`).
 
@@ -175,9 +175,9 @@ Test split of the NLBSE'24 issue report classification benchmark: 1,500 issues, 
 | B1 TF-IDF + logistic regression | 0.7655 | 0.7666 | 0.7673 | 0.7843 | 0.7925 | 0.7230 | 0.0493 |
 | B2 Laya base, zero-shot, 512/192 (native) | 0.6108 | 0.6160 | 0.6453 | 0.6693 | 0.7757 | 0.4029 | 0.0684 |
 | B2 Laya base, zero-shot, 1024/256 | 0.6257 | 0.6310 | 0.6567 | 0.6773 | 0.7827 | 0.4330 | 0.0647 |
-| B3 SetFit (NLBSE'24, published) | 0.8270 | 0.8263 [c] | 0.8267 [c] | 0.8425 [c] | 0.8555 [c] | 0.7809 [c] | — |
-| B3 RoBERTa (NLBSE'24, published) | 0.7923 | 0.7926 [c] | 0.7927 [c] | 0.8052 [c] | 0.8064 [c] | 0.7663 [c] | — |
-| B3 fastText (NLBSE'24, published) | 0.7184 | 0.7193 [c] | 0.7193 [c] | 0.7362 [c] | 0.7390 [c] | 0.6827 [c] | — |
+| B3 SetFit (NLBSE'24, published, other protocol) | 0.8270 | 0.8263 [c] | 0.8267 [c] | 0.8425 [c] | 0.8555 [c] | 0.7809 [c] | — |
+| B3 RoBERTa (NLBSE'24, published, other protocol) | 0.7923 | 0.7926 [c] | 0.7927 [c] | 0.8052 [c] | 0.8064 [c] | 0.7663 [c] | — |
+| B3 fastText (NLBSE'24, published, other protocol) | 0.7184 | 0.7193 [c] | 0.7193 [c] | 0.7362 [c] | 0.7390 [c] | 0.6827 [c] | — |
 
 [c] Derived, not published: NLBSE'24 publishes per-repository, per-class precision, recall and F1, and the pooled values were recovered exactly from them because every test repository has 100 issues per class. B3 publishes no probabilities, so it has no ECE.
 
@@ -203,6 +203,8 @@ Test split of the NLBSE'24 issue report classification benchmark: 1,500 issues, 
 | **all** | | | 391 of 1,500 | **0.2607** | **0.8747** |
 
 **The 0.90 precision target was missed on test.** On validation the `bug` threshold had precision 0.9481 (bootstrap lower bound 0.9091, 77 issues, in-sample); on test the same threshold gave 0.8747, 7.3 points lower. `feature` and `question` never reached the lower bound on validation, so they are always escalated: on test the target was met for 0 of 3 labels (on validation only `bug` had a 0.90 bootstrap lower bound). For comparison, the point-estimate thresholds from validation would auto-label 0.8747 of test issues at precision 0.8491, and the TF-IDF baseline, gated with its own validation-fitted thresholds, auto-labelled 0.4187 of test issues at precision 0.9156.
+
+A coincidence of the numbers needs a warning: the coverage of the τ_point rule (0.8747) equals the precision of the shipped thresholds (0.8747) to four decimals. They are different quantities: the first is the share of all test issues the τ_point rule would label, the second the share of correct labels among the issues the shipped thresholds did label.
 
 ![Coverage against precision of M1 on the test split](../results/figures/coverage_precision_M1_R1b_test.png)
 
